@@ -97,7 +97,7 @@ unsigned long         currentTimeI, previousTimeI=0;;
 double                elapsedTimeI;
 double                errorI=0, lastErrorI=0, cumErrorI=0, rateErrorI;
 // +++++++++++++++  ++++Constantes del controlador+++++++++++++++
-double                kp=0.02, Ki=0.00007, Kd=0.003;
+double                kp=0.02, Ki=0.0000089, Kd=0.000;
 // ++++++++++++++++++variables externas del controlador++++++++++++++++++
 double                Input, output;
 //double                Setpoint;//se usa para indicar el valor deseado unidades en rad/s
@@ -111,10 +111,10 @@ const int MAXFIT=3;//maximum adjustmen that the gyroscope does to the pwm
 double setPointGWD;
 double setPointGWI;
 //------------------------feedforward Y PWM----------------------------------------------------//
-int    PWM_D;
-int    PWM_I;
-double setpointWD;
-double setpointWI;
+int    PWM_D=0;
+int    PWM_I=0;
+double setpointWD=0;
+double setpointWI=0;
 double SetpointD,SetpointI,SetpointAnterior=0;//se usa para indicar el valor de referncia es temporal se debera usar uno para cada rueda
 bool backD=false,backI=false;
-#define MINPWM 76
+#define MINPWM 70

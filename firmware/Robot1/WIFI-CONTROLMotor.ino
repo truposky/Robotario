@@ -91,10 +91,10 @@ void setup() {
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:
   Udp.begin(localPort);//se prepara el puerto para escuchar
-
+  PWM_I=130;
+  PWM_D=130;
 }
   
- 
 
 void loop() {
     int error=0;
@@ -184,15 +184,15 @@ void loop() {
     
   
     
-    PWM_D=PWM_D+ajusteD;
-    PWM_D=PWM_D*(PWM_D>=MINPWM)+(PWM_D<MINPWM)*MINPWM;
-    PWM_I=PWM_I+ajusteI;
-    PWM_I=PWM_I*(PWM_I>=MINPWM)+(PWM_I<MINPWM)*MINPWM;
+   PWM_D=PWM_D+ajusteD;
+   PWM_D=PWM_D*(PWM_D>=MINPWM)+(PWM_D<MINPWM)*MINPWM;
+   PWM_I=PWM_I+ajusteI;
+   PWM_I=PWM_I*(PWM_I>=MINPWM)+(PWM_I<MINPWM)*MINPWM;
     moveWheel(PWM_I,setpointWI,pinMotorI,backI);
     moveWheel(PWM_D,setpointWD,pinMotorD,backD);
-    TimeWait();//se establece 300 milisegundos tiempo suficente para que el PWM cambie sin afectara a los motores
+    TimeWait2();
   //Timewait tambien sirve para hacer media movil de los pulsos.
-  
+    Serial.println(PWM_D);
   
 }
 
@@ -234,11 +234,12 @@ void op_message()
 void op_moveWheel()
 {
    
-
+   // send a reply, to the IP address and port that sent us the packet we received
   strcpy(operation_send.data,"mensaje recibido");
   operation_send.op=OP_MESSAGE_RECIVE;
   operation_send.id=ID;
-    Udp.beginPacket(ip_server,Udp.remotePort());
+   operation_send.len = strlen (operation_send.data);  //len 
+  Udp.beginPacket(ip_server,Udp.remotePort());
   Udp.write((byte*)&operation_send,operation_send.len+HEADER_LEN);
   Udp.endPacket();
   string data=server_operation->data;
@@ -272,13 +273,13 @@ void op_moveWheel()
   //if feedforward detect a problem with discontinuitiy on velocity robot send an alert message
   feedForwardD();
   feedForwardI();
-    // send a reply, to the IP address and port that sent us the packet we received
-  operation_send.len = strlen (operation_send.data);  /* len */
+   
+ 
 
   
   moveWheel(PWM_D,setpointWD,pinMotorD,backD);
   moveWheel(PWM_I,setpointWI,pinMotorI,backI);
-  TimeWait();
+  TimeWait1();
   
 
    
@@ -302,12 +303,24 @@ void op_vel_robot(){
   Udp.write((byte*)&operation_send,operation_send.len+HEADER_LEN);
   Udp.endPacket();
  }
-void TimeWait()
+void TimeWait1()
 {
    int ahora=millis();
     int resta=0;
     int despues=0;
-  while(resta<65){
+  while(resta<100){
+      despues=millis();
+      resta=despues-ahora;
+      deltaTimeD=meanFilterD.AddValue(deltaTimeD);
+      deltaTimeI=meanFilterI.AddValue(deltaTimeI);
+    }
+}
+void TimeWait2()
+{
+   int ahora=millis();
+    int resta=0;
+    int despues=0;
+  while(resta<50){
       despues=millis();
       resta=despues-ahora;
       deltaTimeD=meanFilterD.AddValue(deltaTimeD);
@@ -441,8 +454,8 @@ int pidI(double wI,double Setpoint)
       if(lastErrorI<0 && errorI>0){
         cumErrorI=errorI;
       }
-      if(cumErrorI>35000||cumErrorI<-35000) cumErrorI=0;     //se resetea el error acumulativo 
-      rateErrorI = (errorI - lastErrorI) /elapsedTimeI;         // calcular la derivada del error
+      if(cumErrorI>38000||cumErrorI<-38000) cumErrorI=0;     //se resetea el error acumulativo 
+      rateErrorI = (errorI - lastErrorI) /elapsedTimeI*1000;         // calcular la derivada del error
     
       output = (int)round(kp*errorI  +Ki*cumErrorI + Kd*rateErrorI);     // calcular la salida del PID 0.0001*cumError  + Kd*rateErrorI
      
@@ -474,7 +487,7 @@ double ajusteGyroscope(double z)
 void feedForwardD()
 {
     
-    PWM_D=round((setpointWD+3.269)/0.203);
+    PWM_D=round((setpointWD+0.754)/0.167);
     if(setpointWD==0){
       PWM_D=0;
     }
@@ -485,7 +498,7 @@ void feedForwardD()
 }
 void feedForwardI()
 {
-    PWM_I=round((setpointWI+4.828)/0.231);
+    PWM_I=round((setpointWI-0.329)/0.168);
     if(setpointWI==0){
       PWM_I=0;
     }
