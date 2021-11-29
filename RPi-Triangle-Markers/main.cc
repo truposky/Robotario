@@ -126,33 +126,33 @@ void *dataAruco(void *arg){//thread function
             vel-=vel;
         }
         w=vel/robot1.radWheel;//arduino needs the radial velocity*/
-        if(count <2){
-            w=12;
+        if(count <1){
+            w=13;
             count++;
         }
-        else if(count<4){
-            w=-12;
+        else if(count<2){
+            w=0;
             count++;
         }
         else{
-            w=0;
+            w=-13;
             count=0;
         }
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        
         snprintf(operation_send.data,sizeof(w),"%2.4f",w);     
         snprintf(wc,sizeof(w),"%2.4f",w);
         strcat(operation_send.data,&del); 
         strcat(operation_send.data,wc); 
-        
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
        /* if(w != auxVel){
             comRobot(id,ip,port,OP_MOVE_WHEEL);
             auxVel=w;
         }*/
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        
         n++;
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
-        cout<<tval_sample.tv_usec<<endl;
         
         if( tval_sample.tv_usec<0)
         {
