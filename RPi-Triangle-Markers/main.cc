@@ -57,7 +57,7 @@ const char* keys  =
 
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 100000 // in usec
+#define SAMPLINGTIME 800000 // in usec
 #define MAXSINGNALLENGTH 512
 
 // get sockaddr, IPv4 or IPv6:
@@ -72,7 +72,7 @@ void SetupRobots();//copy the information in the xml file to save in the class r
 void error(const char *msg)
 {
     perror(msg);
-    exit(1);
+    exit(-1);
 }
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -106,54 +106,67 @@ void *dataAruco(void *arg){//thread function
     tval_sample.tv_usec=0;
 
     int n=0;
-    double fs=1/0.1;
-    double f0=fs/30;
+    double fs=1/0.5;
+    double f0=fs/5;
     double w0=2*M_PI*f0;
-    double A=30;
+    double A=20;
     double vel,td,auxVel=0;
     double w;
     char del=',';
     char wc[sizeof(vel)];
+    int count=0;
     while(n<MAXSINGNALLENGTH){
-        td=(double)n*0.1; 
-
         gettimeofday(&tval_before,NULL);
-        vel=A*w0*cos(w0*td);
-        if(vel>=0){
-            vel=A*w0;
+        /*vel=A*w0*cos(w0*td)*td;
+         td=(double)n*0.5; 
+       if(vel>=0){
+            vel+=vel;
         }
         else{
-            vel=-A*w0;
+            vel-=vel;
         }
-        w=vel/robot1.radWheel;//arduino needs the radial velocity
-
-        cout<<"vel:"<<vel<<endl;
-        cout<<"w:"<<w<<endl;
-
+        w=vel/robot1.radWheel;//arduino needs the radial velocity*/
+        if(count <2){
+            w=12;
+            count++;
+        }
+        else if(count<4){
+            w=-12;
+            count++;
+        }
+        else{
+            w=0;
+            count=0;
+        }
         comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
         snprintf(operation_send.data,sizeof(w),"%2.4f",w);     
         snprintf(wc,sizeof(w),"%2.4f",w);
         strcat(operation_send.data,&del); 
         strcat(operation_send.data,wc); 
-        if(vel != auxVel){
+        
+       /* if(w != auxVel){
             comRobot(id,ip,port,OP_MOVE_WHEEL);
-            auxVel=vel;
-        }
+            auxVel=w;
+        }*/
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
         n++;
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
-        if(tval_sample.tv_usec != SAMPLINGTIME)
+        cout<<tval_sample.tv_usec<<endl;
+        
+        if( tval_sample.tv_usec<0)
         {
-            while(tval_sample.tv_usec<SAMPLINGTIME){
-                gettimeofday(&tval_after,NULL);
-                timersub(&tval_after,&tval_before,&tval_sample);
-            }
-            //usleep(SAMPLINGTIME-tval_sample.tv_usec);
-            
+            error("error time");
         }
-        else if( tval_sample.tv_usec<0 || tval_sample.tv_usec>SAMPLINGTIME)
+        else if (tval_sample.tv_usec>SAMPLINGTIME){
+            //error("time of program greater than sample time");
+            cout<<"tiempo de programa mayor"<<endl;
+        }
+        else
         {
-            error("error short sample time");
+           
+            usleep(SAMPLINGTIME-tval_sample.tv_usec);
+            
         }
         
         
@@ -359,7 +372,6 @@ int comRobot(int id,string ip,string port,int instruction){
     int rv;
     int numbytes;
     struct sockaddr_storage robot_addr;
-    cout<<"puert Robot:"<<port<<endl;
     socklen_t addr_len = sizeof robot_addr;
 
 
@@ -398,57 +410,47 @@ int comRobot(int id,string ip,string port,int instruction){
     operation_send.id=id;//se asigna el id del robot1
     string data;
     string delimiter=":";
-    /*cout<<"elige operacion"<<endl;//se debe ingresar la operacion y los correspondientes datos
-    operationSend();//se elige la operacion a enviar
-    if(operation_send.op != OP_SALUDO && operation_send.op != OP_VEL_ROBOT){
-        //se ingresa la informacion correspondiente a la operacion elegida.
-        cout<<"ingresa datos: ";
-        cin.ignore();
-        cin>>operation_send.data;
-        operation_send.len = strlen (operation_send.data);
-    }*/
     operation_send.len = strlen (operation_send.data);
     operation_send.op=instruction;
 
-    if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1) {
+    if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
+    {
         perror("talker: sendto");
         exit(1);
     }
+    if(operation_send.op != OP_MOVE_WHEEL)
+    { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
+        if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
+        }
+        operation_recv=( struct appdata*)&buf;
+        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) ){
 
-    //cout<<"mensaje enviado"<<endl;
+            cout<<"(servidor) unidad de datos incompleta\n";
+        }
+        else{
+              // relaiza operacion solicitada por el cliente 
 
-    if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
+            switch (operation_recv->op){
+                case OP_SALUDO:
+                    cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_MESSAGE_RECIVE:
+                    cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_VEL_ROBOT:
+                    data=operation_recv->data;
+                    char del =',';
+                    vector<string> speed;
+                    tokenize(data,del,speed);
+                    cout<<speed[0];//rueda derecha
+                    cout<<","<<speed[1]<<endl;//rueda izquierda
+                break;
+            }
+       
+        memset (buf, '\0', MAXDATASIZE);
+        }
     }
-    operation_recv=( struct appdata*)&buf;
-    if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) ){
-
-        cout<<"(servidor) unidad de datos incompleta\n";
-    }
-    else{
-        
-       /* cout<<"(servidor) id "<<operation_recv->id;
-        cout<<" operacion solicitada [op 0x]"<<operation_recv->op;
-        cout<<" contenido "<<operation_recv->data<<endl;*/
-    }
-    // relaiza operacion solicitada por el cliente 
-
-    switch (operation_recv->op){
-        case OP_SALUDO:
-           // cout<<" contenido "<<operation_recv->data<<endl;
-        break;
-        case OP_MESSAGE_RECIVE:
-           // cout<<" contenido "<<operation_recv->data<<endl;
-        break;
-        case OP_VEL_ROBOT:
-            data=operation_recv->data;
-            char del =',';
-            vector<string> speed;
-            tokenize(data,del,speed);
-            cout<<"velocidad rueda derecha: "<<speed[0]<<endl;
-            cout<<"velocidad rueda izquierda: "<<speed[1]<<endl;
-            break;
-    memset (buf, '\0', MAXDATASIZE);
-    }
+   
     
     freeaddrinfo(servinfo);
     
