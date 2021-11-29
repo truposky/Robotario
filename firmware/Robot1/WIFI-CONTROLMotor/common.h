@@ -87,7 +87,7 @@ double                 distanciaD=0;
 double wI,wD;//sirven para medir la velocidad de cada rueda
 //---------------------VARIABLES DEL CONTROLADOR PID-----------------------------------------------------------------------------
 //+++++++++++ variables internas del controlador++++++++++++++
-double                   k=1;//se mide en milisegundos y sirve para establecer un tiempo de muestreo discreto
+double                   k=2;//se mide en milisegundos y sirve para establecer un tiempo de muestreo discreto
 //++++++++++++++++++rueda derecha+++++++++++++++++
 unsigned long         currentTimeD, previousTimeD=0;;
 double                elapsedTimeD;
@@ -97,7 +97,7 @@ unsigned long         currentTimeI, previousTimeI=0;;
 double                elapsedTimeI;
 double                errorI=0, lastErrorI=0, cumErrorI=0, rateErrorI;
 // +++++++++++++++  ++++Constantes del controlador+++++++++++++++
-double                kp=0.02, Ki=0.0000089, Kd=0.000;
+double                kp=0.0042, Ki=0.001, Kd=0;
 // ++++++++++++++++++variables externas del controlador++++++++++++++++++
 double                Input, output;
 //double                Setpoint;//se usa para indicar el valor deseado unidades en rad/s
@@ -118,3 +118,6 @@ double setpointWI=0;
 double SetpointD,SetpointI,SetpointAnterior=0;//se usa para indicar el valor de referncia es temporal se debera usar uno para cada rueda
 bool backD=false,backI=false;
 #define MINPWM 70
+#define SAMPLINGTIME 1000
+unsigned long currentTime=0, timeAfter=0;
+double elapsedTime=0;
