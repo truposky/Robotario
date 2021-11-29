@@ -182,7 +182,7 @@ int main(int argc,char **argv)
 {
     pthread_t detectAruco;
     SetupRobots();
-
+    record_data data;//struct for save in linked list
     cv::CommandLineParser parser(argc, argv, keys);
     parser.about(about);
 
@@ -262,7 +262,7 @@ int main(int argc,char **argv)
         cv::aruco::detectMarkers(image, dictionary, corners, ids);
 
         // if at least one marker detected
-        if (data.ids.size() > 0)
+        if (ids.size() > 0)
         {
             cv::aruco::drawDetectedMarkers(image_copy, corners, ids);
             std::vector<cv::Vec3d> rvecs, tvecs;
@@ -326,7 +326,7 @@ int main(int argc,char **argv)
         //end mutex
 
      in_video.release();
-
+    }
     pthread_exit(NULL);
     return 0;
 }
