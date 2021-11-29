@@ -87,12 +87,14 @@ enum {r1, r2, r3, r4,r5};
 Robot robot1,robot2,robot3,robot4;//se define la clase para los distintos robots.
 struct record_data//struct for share information between threads
 {
-    std::ostringstream vector_to_marker;
-    std::vector<int> ids;
-    std::vector<std::vector<cv::Point2f> > corners;
-    std::vector<cv::Vec3d> rvecs, tvecs;
+    int id;
+    int cx;
+    int n;
 };
-struct record_data data;//shared data bewtwen threads
+list<record_data> arucoInfo;//list for save the information of all the arucos
+list<record_data>::iterator it;
+
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -255,24 +257,24 @@ int main(int argc,char **argv)
     {
         in_video.retrieve(image);
         image.copyTo(image_copy);
-        //std::vector<int> ids;
-        //std::vector<std::vector<cv::Point2f> > corners;
-        cv::aruco::detectMarkers(image, dictionary, data.corners, data.ids);
+        std::vector<int> ids;
+        std::vector<std::vector<cv::Point2f> > corners;
+        cv::aruco::detectMarkers(image, dictionary, corners, ids);
 
         // if at least one marker detected
         if (data.ids.size() > 0)
         {
-            cv::aruco::drawDetectedMarkers(image_copy, data.corners, data.ids);
-            //std::vector<cv::Vec3d> rvecs, tvecs;
-            cv::aruco::estimatePoseSingleMarkers(data.corners, marker_length_m,
-                    camera_matrix, dist_coeffs, data.rvecs, data.tvecs);
+            cv::aruco::drawDetectedMarkers(image_copy, corners, ids);
+            std::vector<cv::Vec3d> rvecs, tvecs;
+            cv::aruco::estimatePoseSingleMarkers(corners, marker_length_m,
+                    camera_matrix, dist_coeffs, rvecs, tvecs);
                     
             /*std::cout << "Translation: " << tvecs[0]
                 << "\tRotation: " << rvecs[0] 
                 << std::endl;
             */
             // Draw axis for each marker
-            for(int i=0; i < data.ids.size(); i++)
+            /*for(int i=0; i < data.ids.size(); i++)
             {
                 cv::aruco::drawAxis(image_copy, camera_matrix, dist_coeffs,
                         data.rvecs[i], data.tvecs[i], 0.1);
@@ -285,6 +287,7 @@ int main(int argc,char **argv)
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
                                  << "x: " << std::setw(8) << data.tvecs[0](0);
+                            
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
@@ -302,14 +305,26 @@ int main(int argc,char **argv)
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
+            }*/
+            //mutex
+            it=arucoInfo.begin();
+            for(int i=0; i < ids.size(); i++)
+            {
+                int cx1 =static_cast<int> ((corners.at(i).at(1).x - corners.at(i).at(0).x)/2 + corners.at(i).at(0).x);
+                int cx2 =static_cast<int> ((corners.at(i).at(3).x  - corners.at(i).at(2).x )/2 + corners.at(i).at(2).x );
+                
+                int cam_center_posX = (cx1 + cx2)/2;
+                data.cx=cam_center_posX;
+                //cout<<cam_center_posX<<endl;
+                data.id=ids.at(i);
+                data.n=i;
+                arucoInfo.insert(it,data);
+                it++;
             }
+            
         }
+        //end mutex
 
-        imshow("Pose estimation", image_copy);
-        char key = (char)cv::waitKey(wait_time);
-        if (key == 27)
-            break;
-    }
      in_video.release();
 
     pthread_exit(NULL);
