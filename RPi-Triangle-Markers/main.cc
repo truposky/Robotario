@@ -325,8 +325,12 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-     in_video.release();
+      imshow("Pose estimation", image_copy);
+        char key = (char)cv::waitKey(wait_time);
+        if (key == 27)
+            break;
     }
+    in_video.release();
     pthread_exit(NULL);
     return 0;
 }
