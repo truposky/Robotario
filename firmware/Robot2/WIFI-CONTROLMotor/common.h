@@ -114,7 +114,7 @@ double SetpointD,SetpointI,SetpointAnterior=0;//se usa para indicar el valor de 
 bool backD=false,backI=false;
 #define MINPWM 90
 #define MAXPWM 255
-#define LIM_LINEAL
+#define LIM_LINEAL 13.5
 //----------------------sampling time variables----------------------------------------------------------------------------
 #define SAMPLINGTIME 3.5//ms
 unsigned long currentTime=0, timeAfter=0;

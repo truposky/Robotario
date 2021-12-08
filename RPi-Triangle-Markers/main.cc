@@ -31,6 +31,9 @@
 #include <pthread.h> 
 #include <time.h> 
 #include <math.h> 
+#include <fstream>
+#include <iostream>
+
 using namespace std;
 using namespace tinyxml2;
 
@@ -57,8 +60,8 @@ const char* keys  =
 
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 800000 // in usec
-#define MAXSINGNALLENGTH 512
+#define SAMPLINGTIME 500000 // in usec
+#define MAXSINGNALLENGTH 1024
 
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
@@ -90,17 +93,25 @@ struct record_data//struct for share information between threads
     int id; //id of every robot
     int cx; //center of very marker
     int n;  //counter for know how many robots there are
+    float degree;
 };
 list<record_data> arucoInfo;//list for save the information of all the arucos
 list<record_data>::iterator it;
 
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
+float PixeltoDegree(int cx){
+    float degree=(cx+256.47368)/6.38772;
+    return degree;
+}
 
 void *dataAruco(void *arg){//thread function
     int id;
     string ip,port;
+    ofstream logo("logo.txt");
+    logo.close();//file created
+
     robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
@@ -108,51 +119,47 @@ void *dataAruco(void *arg){//thread function
     tval_sample.tv_usec=0;
 
     int n=0;
-    double fs=1/0.5;
-    double f0=fs/5;
-    double w0=2*M_PI*f0;
-    double A=20;
-    double vel,td,auxVel=0;
-    double w;
+    float fs=1/0.5;
+    float f0=fs/10;
+    float w0=2*M_PI*f0;
+    float A=40;
+    float vel;//linear velocity of robot
+    float td,auxVel=0;
+    float w;//angular velocity of robot
     char del=',';
     char wc[sizeof(vel)];
-    int count=0;
+
+    float velocity_robot[2];
+    float angularWheel[2];
+    
+    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     while(n<MAXSINGNALLENGTH){
         gettimeofday(&tval_before,NULL);
-        /*vel=A*w0*cos(w0*td)*td;
-         td=(double)n*0.5; 
-       if(vel>=0){
-            vel+=vel;
-        }
-        else{
-            vel-=vel;
-        }
-        w=vel/robot1.radWheel;//arduino needs the radial velocity*/
-        if(count <1){
-            w=10;
-            count++;
-        }
-        else if(count<2){
-            w=0;
-            count++;
-        }
-        else{
-            w=-10;
-            count=0;
-        }
-        
-        snprintf(operation_send.data,sizeof(w),"%2.4f",w);     
-        snprintf(wc,sizeof(w),"%2.4f",w);
+        td=(float)n*0.5; 
+        vel=A*w0*sin(w0*td);//linear velocity
+        w=0;
+       // cout<<vel<<endl;
+        velocity_robot[0]=w;
+        velocity_robot[1]=vel;
+        robot1.angularWheelSpeed(angularWheel,velocity_robot);
+       // cout<<"data ";
+      // cout<<angularWheel[0]<<",";
+      // cout<<angularWheel[1]<<endl;
+        snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
+        snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
         strcat(operation_send.data,&del); 
         strcat(operation_send.data,wc); 
+      // cout<<operation_send.data<<endl;
+
         comRobot(id,ip,port,OP_MOVE_WHEEL);
         comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-       /* if(w != auxVel){
-            comRobot(id,ip,port,OP_MOVE_WHEEL);
-            auxVel=w;
-        }*/
-        
+        logo.open("logo.txt",ios::app);
+        for(int i=0;i<it->n;i++)
+        {
+            logo<<td<<","<<velocity_robot[0]<<","<<it->degree<<endl;
+        }
         n++;
+        logo.close();
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
@@ -175,7 +182,15 @@ void *dataAruco(void *arg){//thread function
        
         
     }
+    vel=0;
+    w=0;
+    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+    snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
+    snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
+    strcat(operation_send.data,&del); 
+    strcat(operation_send.data,wc); 
 
+    comRobot(id,ip,port,OP_MOVE_WHEEL);
     return NULL;
 }
 
@@ -312,19 +327,23 @@ int main(int argc,char **argv)
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
             }*/
             //mutex
+            pthread_mutex_lock(&mutex_);
             it=arucoInfo.begin();
             for(int i=0; i < ids.size(); i++)
             {
                 int cx1 =static_cast<int> ((corners.at(i).at(1).x - corners.at(i).at(0).x)/2 + corners.at(i).at(0).x);
                 int cx2 =static_cast<int> ((corners.at(i).at(3).x  - corners.at(i).at(2).x )/2 + corners.at(i).at(2).x );
-                
                 int cam_center_posX = (cx1 + cx2)/2;
                 data.cx=cam_center_posX;
                 data.id=ids.at(i);
-                data.n=i;
+                data.n=i+1;
+                data.degree=PixeltoDegree(data.cx);
                 arucoInfo.insert(it,data);
                 it++;
             }
+            int status = pthread_mutex_unlock (&mutex_);
+            if (status != 0)
+             exit(status);
             
         }
         //end mutex

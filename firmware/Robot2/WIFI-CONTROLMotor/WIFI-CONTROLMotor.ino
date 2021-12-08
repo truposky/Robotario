@@ -18,7 +18,7 @@ int status = WL_IDLE_STATUS;
 //UDP variables setup
 /*-----------ip setup-----------------*/
 IPAddress ip_arduino1(192,168,1,5);
-IPAddress ip_server(192,168,1,17);
+IPAddress ip_server(192,168,1,2);
 WiFiUDP Udp;
 unsigned int localPort = 4243;      // local port to listen on
 char packetBuffer[256]; //buffer to hold incoming packet
@@ -313,7 +313,7 @@ void op_moveWheel()
   feedForwardI();
   moveWheel(PWM_D,setpointWD,pinMotorD,backD);
   moveWheel(PWM_I,setpointWI,pinMotorI,backI);
-   
+  delay(100);
   
 }
 void op_StopWheel(){
@@ -444,7 +444,7 @@ int pidD(double wD)
     if(lastErrorD<0 && errorD>0)cumErrorD=errorD;
     if(cumErrorD>4|| cumErrorD<-4) cumErrorD=0;                         //se resetea el error acumulativo
     rateErrorD = (errorD - lastErrorD) / SAMPLINGTIME*1000;         // calcular la derivada del error
-    outputD =static_cast<int> (round(0.038*errorD +0.02*cumErrorD + 0*rateErrorD ));     // calcular la salida del PID     0.0025*cumErrorD
+    outputD =static_cast<int> (round(0.04*errorD +0.1*cumErrorD + 0*rateErrorD ));     // calcular la salida del PID     0.0025*cumErrorD
     lastErrorD = errorD;                                      // almacenar error anterior
     
   }
@@ -472,7 +472,7 @@ int pidI(double wI)
     if(cumErrorI>4||cumErrorI<-4) cumErrorI=0;     //se resetea el error acumulativo 
     rateErrorI = (errorI - lastErrorI) /(SAMPLINGTIME*1000);         // calcular la derivada del error
     
-    outputI = static_cast<int> (round(0.035*errorI  + 0.02*cumErrorI + 0*rateErrorI));     // calcular la salida del PID 
+    outputI = static_cast<int> (round(0.04*errorI  + 0.1*cumErrorI + 0*rateErrorI));     // calcular la salida del PID 
     lastErrorI = errorI; 
   
   }
@@ -486,7 +486,7 @@ int pidI(double wI)
 
 void feedForwardD()
 {
-    if(setpointWD< LIM_LINEAL){
+    if(setpointWD < LIM_LINEAL){
       PWM_D=round((setpointWD+0.0894785)/0.0793996);
     }
     else 
@@ -507,7 +507,7 @@ void feedForwardD()
 void feedForwardI()
 {
 
-    if(setpointWD){
+    if(setpointWD < LIM_LINEAL){
      PWM_I=round((setpointWI-0.199148)/0.07553);
     }
     else 

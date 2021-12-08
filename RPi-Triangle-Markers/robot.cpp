@@ -13,30 +13,36 @@ void Robot::SetupConection(int &id,string &IP,string &P){
     P=port;
 
 }
-class Wheel: public Robot
+void Robot::angularWheelSpeed(float (&w_wheel)[NUMWHEELS],float velocity_robot[2])
 {
-	private:
-		float R=3.35;//cm
-		const float L=12.4;//cm
-class Wheel: public Robot
-{
-	private:
-		float radWheel=3.35;//cm
-		float l=12.4;//cm
-
-	public:
-		void angularSpeed(float&,float&);
-}
-		float A=[2][2]={{L/(2*R),1/L, {-L/(2*R),1/L}};//inverse matrix for compute the angular velocities of every wheel
-	public:
-		void angularSpeed(float&,float&);
-}
-Wheel(float&,float V,float W){
-
-  	for(int i=0; i <2;i++){
-		for(int j=0;j<2;j++){
-			
+	int fila=2;
+	int columna =2;
+	float aux=0;
+	for (int i =0;i<NUMWHEELS;i++){
+		w_wheel[i]=0;
+	}
+	
+  	for(int i=0; i <fila;i++){
+		for(int j=0;j<columna;j++){
+			aux=+A[i][j] *velocity_robot[j];
 		}
+		w_wheel[i]=aux;
+		aux=0;
 	}
 
 }
+
+/*void Wheel::angularSpeed(float (&w_wheel)[NUMWHEELS],float velocity_robot[2])
+{
+	int fila=2;
+	int columna =2;
+	float aux=0;
+  	for(int i=0; i <fila;i++){
+		for(int j=0;j<columna;j++){
+			aux=+A[i][j] *velocity_robot[j];
+		}
+		w_wheel[i]=aux;
+		aux=0;
+	}
+
+}*/
