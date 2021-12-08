@@ -1,4 +1,4 @@
-
+//robot2
 #include <WiFiNINA.h>
 #include "common.h"
 #include <math.h>
@@ -18,14 +18,14 @@ int status = WL_IDLE_STATUS;
 //UDP variables setup
 /*-----------ip setup-----------------*/
 IPAddress ip_arduino1(192,168,1,5);
-IPAddress ip_server(192,168,1,2);
+IPAddress ip_server(192,168,1,17);
 WiFiUDP Udp;
 unsigned int localPort = 4243;      // local port to listen on
 char packetBuffer[256]; //buffer to hold incoming packet
 
 //--------------------------------------------filtro de media movil simple para estabilizar la lectura de rad/s---------------------------------------
-MeanFilter<long> meanFilterD(5);
-MeanFilter<long> meanFilterI(5);
+MeanFilter<long> meanFilterD(4);
+MeanFilter<long> meanFilterI(4);
 //Time variables
 unsigned long previous_timer;
 unsigned long timer=10000;
@@ -41,9 +41,7 @@ void op_saludo();
 void op_message();
 void op_moveWheel();
 void op_StopWheel();
-void TimeWait1();
-void TimeWait2();
- void motorSetup();
+void motorSetup();
 void moveForward(const int pinMotor[3], int speed);
 void moveBackward(const int pinMotor[3], int speed);
 void fullStop(const int pinMotor[3]);
@@ -64,7 +62,7 @@ void setup() {
   pinMode(encoderD,INPUT_PULLUP);
   pinMode(encoderI,INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(encoderI), isrI, RISING);//prepara la entrada del encoder como interrupcion
-  attachInterrupt(digitalPinToInterrupt(encoderD), isrD, FALLING);
+  attachInterrupt(digitalPinToInterrupt(encoderD), isrD, RISING);
   //se prepara la IMU para poder ser leida
   if (!IMU.begin()) {
     Serial.println("Failed to initialize IMU!");
@@ -111,10 +109,12 @@ void setup() {
   Udp.begin(localPort);//se prepara el puerto para escuchar
 }
   
-
+long int n=0;
 void loop() {
-      currentTime=micros();
+      currentTime=millis();
+      
       double fD,fI;
+      int ajusteD,ajusteI;
       timeStopD=millis();
       timeStopI=millis();
       //condition for know when the wheel is stoped
@@ -122,46 +122,57 @@ void loop() {
       deltaTimeStopD=timeStopD-timeAfterDebounceD;
       deltaTimeStopI=timeStopI-timeAfterDebounceI;
      
-        meanFilterD.AddValue(deltaTimeD);
-        meanFilterI.AddValue(deltaTimeI);
-      if(deltaTimeStopD>=200){
-        fD=0;
-      }
-      else{
-        fD=(double)1/(meanFilterD.GetFiltered()*N)*1000000;
-      }
-      if(deltaTimeStopI>=200){
-        fI=0;
-      }
-      else{
-        fI=(double)1/(meanFilterI.GetFiltered()*N)*1000000;
-      }
-      //condicion para que no supere linealidad y se sature.
-      if(fD<31/2/3.14)
-      {
-        wD=2*PI*fD;
-       
-      }
-      if(fI<31/2/3.14 )
-      {
-         wI=2*PI*fI;
-      }
-      int ajusteD=pidD(wD);
-      int ajusteI=pidI(wI); 
+      meanFilterD.AddValue(deltaTimeD);
+      meanFilterI.AddValue(deltaTimeI);
       
-    
-     if(setpointWD != 0){ 
-       PWM_D=PWM_D+ajusteD;
-       PWM_D=PWM_D*(PWM_D>=73)+(PWM_D<73)*73;
-     }
-     if(setpointWI !=0){
-       PWM_I=PWM_I+ajusteI;
-       PWM_I=PWM_I*(PWM_I>=MINPWM)+(PWM_I<MINPWM)*MINPWM;
-     }
-  
-     moveWheel(PWM_I,setpointWI,pinMotorI,backI);
-     moveWheel(PWM_D,setpointWD,pinMotorD,backD);
-      
+      if(n%10==0){//take values with more split between them for avoid quick variations
+          if(deltaTimeStopD>=200){
+            fD=0;
+          }
+          else{
+            fD=(double)1/(meanFilterD.GetFiltered()*N)*1000000;
+          }
+          if(deltaTimeStopI>=200){
+            fI=0;
+          }
+          else{
+            fI=(double)1/(meanFilterI.GetFiltered()*N)*1000000;
+          }
+           
+             //condicion para que no supere linealidad y se sature.
+             //es un filtro para que no de valores ridiculos
+          if(fD<18/2/3.14)
+          {
+            wD=2*3.14*fD;
+           
+          }
+          if(fI<18/2/3.14 )
+          {
+             wI=2*3.14*fI;
+          }
+          //fin filtro
+          
+           ajusteD=pidD(wD);
+           ajusteI=pidI(wI); 
+          
+        
+         if(setpointWD != 0){ 
+           PWM_D=PWM_D+ajusteD;
+           PWM_D=PWM_D*(PWM_D>=MINPWM && PWM_D<=MAXPWM)+(PWM_D<=MINPWM)*MINPWM +(PWM_D>=MAXPWM)*MAXPWM;
+         }
+         if(setpointWI !=0){
+           PWM_I=PWM_I+ajusteI;
+           if(PWM_I>=MAXPWM){
+             PWM_I=MAXPWM;
+           }
+          else if(PWM_I<=MINPWM){
+             PWM_I=MINPWM;
+           }
+         }
+         
+         moveWheel(PWM_I,setpointWI,pinMotorI,backI);
+         moveWheel(PWM_D,setpointWD,pinMotorD,backD);
+     } 
        // start the UDP on port 4243
       // if there's data available, read a packet
       memset (packetBuffer,'\0',MAXDATASIZE);
@@ -201,12 +212,17 @@ void loop() {
             }
         }
       }
-   
+     Serial.print(PWM_D);
+     Serial.print(",");
+     Serial.print(PWM_I);
+     Serial.print(",");
      Serial.print(wD);
      Serial.print(",");
      Serial.println(wI);
-     timeAfter=micros();
-     elapsedTime=(double)(timeAfter-currentTime);
+     n++;
+     n=n*(n<=10);
+     timeAfter=millis();
+    elapsedTime=(double)(timeAfter-currentTime);
     if(elapsedTime<SAMPLINGTIME)
     {
       delayMicroseconds(SAMPLINGTIME-elapsedTime);
@@ -271,7 +287,6 @@ void op_moveWheel()
   tokenize(data, del,vel);
   setpointWD=stod(vel[0]);
   setpointWI=stod(vel[1]);
-  Serial.println(server_operation->data);
   
   if(setpointWD<0)
   {
@@ -298,9 +313,6 @@ void op_moveWheel()
   feedForwardI();
   moveWheel(PWM_D,setpointWD,pinMotorD,backD);
   moveWheel(PWM_I,setpointWI,pinMotorI,backI);
-  
-  
-
    
   
 }
@@ -320,20 +332,7 @@ void op_vel_robot(){
   Udp.write((byte*)&operation_send,operation_send.len+HEADER_LEN);
   Udp.endPacket();
  }
-void TimeWait1()
-{
-   int ahora=millis();
-    int resta=0;
-    int despues=0;
-  while(resta<20){
-      
-      meanFilterD.AddValue(deltaTimeD);
-      meanFilterI.AddValue(deltaTimeI);
-      despues=millis();
-      resta=despues-ahora;
-    }
-    
-}
+
 
 
  void motorSetup()
@@ -374,11 +373,14 @@ void moveWheel(int pwm,double w, const int pinMotor[3],bool back)
   if(pwm==0 || w==0){
     fullStop(pinMotor);
   }
-  else{
-    if(back){
+  else
+  {
+    if(back)
+    {
       moveBackward(pinMotor,pwm);
     }
-    else if(!back){
+    else if(!back)
+    {
       moveForward(pinMotor,pwm);
     }
   }
@@ -392,17 +394,15 @@ void isrD()
   
   timeBeforeDebounceD=millis();//tiempo para evira rebotes
   deltaDebounceD=timeBeforeDebounceD-timeAfterDebounceD;// tiempo que ha pasdo entre interrupcion he interrupcion
-  if(deltaDebounceD>TIMEDEBOUNCE){//condicion para evitar rebotes
+  if(deltaDebounceD>TIMEDEBOUNCE)
+  {//condicion para evitar rebotes
     //se empieza a contar el tiempo que ha pasado entre una interrupcion "valida" y otra.
     
     startTimeD=micros();
     encoder_countD++;
-    if(encoder_countD%2==0){
+    //if(encoder_countD%2==0){
     deltaTimeD=startTimeD-timeAfterD;
-    }
-    
-    
-      
+    //}
     
     timeAfterD=micros();
   }
@@ -415,16 +415,17 @@ void isrI()
     
     timeBeforeDebounceI=millis();//tiempo para evira rebotes
     deltaDebounceI=timeBeforeDebounceI-timeAfterDebounceI;// tiempo que ha pasdo entre interrupcion he interrupcion
-    if(deltaDebounceI>TIMEDEBOUNCE){//condicion para evitar rebotes
+    if(deltaDebounceI>TIMEDEBOUNCE)
+    {//condicion para evitar rebotes
       //se empieza a contar el tiempo que ha pasado entre una interrupcion "valida" y otra.
      
-      startTimeI=micros();
-       encoder_countI++;//se cuenta los pasos de encoder
-      if(encoder_countI%2==0){
+        startTimeI=micros();
+        encoder_countI++;//se cuenta los pasos de encoder
+        //if(encoder_countI%2==0){
         
         deltaTimeI=startTimeI-timeAfterI;
     
-      }
+        //}
       
         timeAfterI=micros();
     }
@@ -433,75 +434,71 @@ void isrI()
 }
 int pidD(double wD)
 {
-  int output=0;
+  int outputD=0;
   
   errorD = setpointWD - wD;
-  if(errorD>=0.15|| errorD<(-0.15)){
-  cumErrorD += errorD * SAMPLINGTIME/1000000;                      // calcular la integral del error
-  if(lastErrorD>0 && errorD<0)cumErrorD=errorD;
-  if(lastErrorD<0 && errorD>0)cumErrorD=errorD;
-  if(cumErrorD>2.4 || cumErrorD<-2.4) cumErrorD=0;                         //se resetea el error acumulativo
-  rateErrorD = (errorD - lastErrorD) / elapsedTime*1000000;         // calcular la derivada del error
+  if(errorD>=0.30|| errorD<(-0.30))
+  {
+    cumErrorD += errorD * SAMPLINGTIME/1000;                      // calcular la integral del error
+    if(lastErrorD>0 && errorD<0)cumErrorD=errorD;
+    if(lastErrorD<0 && errorD>0)cumErrorD=errorD;
+    if(cumErrorD>4|| cumErrorD<-4) cumErrorD=0;                         //se resetea el error acumulativo
+    rateErrorD = (errorD - lastErrorD) / SAMPLINGTIME*1000;         // calcular la derivada del error
+    outputD =static_cast<int> (round(0.038*errorD +0.02*cumErrorD + 0*rateErrorD ));     // calcular la salida del PID     0.0025*cumErrorD
+    lastErrorD = errorD;                                      // almacenar error anterior
+    
+  }
   
-  
-  output =(int) round(0.0328*errorD +0.00263*cumErrorD + 0*rateErrorD );     // calcular la salida del PID     0.0001*cumError  + Kd*rateErrorD
-  lastErrorD = errorD;                                      // almacenar error anterior
-    }
-  return output;
+  return outputD;
 }
 
 
 int pidI(double wI)
 {
-  int output=0;
+  int outputI;
   errorI = setpointWI - wI;   
   
-                
-  if(errorI>=0.15|| errorI<(-0.15)){
-  cumErrorI += errorI * SAMPLINGTIME/1000000;  //pasado un tiempo se tiene que borrrar cumerror                    // calcular la integral del error
-  
-  if(lastErrorI>0 && errorI<0){
+              
+  if(errorI>=0.3 || errorI<(-0.3))
+  {
+    cumErrorI += errorI * (SAMPLINGTIME/1000);  //pasado un tiempo se tiene que borrrar cumerror                    // calcular la integral del error
+    
+    if(lastErrorI>0 && errorI<0){
     cumErrorI=errorI;
-  }
-  if(lastErrorI<0 && errorI>0){
+    }
+    if(lastErrorI<0 && errorI>0){
     cumErrorI=errorI;
+    }
+    if(cumErrorI>4||cumErrorI<-4) cumErrorI=0;     //se resetea el error acumulativo 
+    rateErrorI = (errorI - lastErrorI) /(SAMPLINGTIME*1000);         // calcular la derivada del error
+    
+    outputI = static_cast<int> (round(0.035*errorI  + 0.02*cumErrorI + 0*rateErrorI));     // calcular la salida del PID 
+    lastErrorI = errorI; 
+  
   }
-  if(cumErrorI>2.4||cumErrorI<-2.4) cumErrorI=0;     //se resetea el error acumulativo 
-  rateErrorI = (errorI - lastErrorI) /elapsedTime*1000000;         // calcular la derivada del error
-  
-  output = (int)round(0.0113*errorI  +0.002347*cumErrorI + Kd*rateErrorI);     // calcular la salida del PID 0.0001*cumError  + Kd*rateErrorI
-  
-  lastErrorI = errorI; 
-  
+  else{
+    outputI=0;
   }
-
-  return output;
+  return outputI;
   
-}
-
-//funcion que permite un control mejorado de las velocidades de las ruedas gracias al giroscopo
-double ajusteGyroscope(double z)
-{//Setpoint en rad/s
-  double W=D/2*(setPointGWD-setPointGWI)/L;// se calcula la velocidad angular del centro de masas del robot
-   z=z+ERR_GIROSCOPE;//se pone a cero la medida 
-   if(z>-0.15 && z<0.20){
-    z=0;
-   }
-   double error=W-z;
-
-   return error;
-   
 }
 
 
 void feedForwardD()
 {
-    
-    PWM_D=round((setpointWD+2.02177)/0.17834);
-    
-    if(PWM_D<71){
+    if(setpointWD< LIM_LINEAL){
+      PWM_D=round((setpointWD+0.0894785)/0.0793996);
+    }
+    else 
+    {
+      PWM_D=round((setpointWD - 5.674671)/0.0508996);
+    }
+    if(PWM_D<90){
       strcpy(operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
-      PWM_D=71;
+      PWM_D=90;
+    }
+    else if(PWM_D>MAXPWM){
+      PWM_D=MAXPWM;
     }
     if(setpointWD==0){
       PWM_D=0;
@@ -509,11 +506,21 @@ void feedForwardD()
 }
 void feedForwardI()
 {
-    PWM_I=round((setpointWI+1.46339)/0.18227);
-   
-    if(PWM_I<70){
+
+    if(setpointWD){
+     PWM_I=round((setpointWI-0.199148)/0.07553);
+    }
+    else 
+    {
+      PWM_I=round((setpointWI-5.81841)/0.0476894);
+      
+    }
+    if(PWM_I<MINPWM){
       strcpy(operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
-      PWM_I=70;
+      PWM_I=MINPWM;
+    }
+    else if(PWM_I>MAXPWM){
+      PWM_I=MAXPWM;
     }
      if(setpointWI==0){
       PWM_I=0;
