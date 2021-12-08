@@ -87,9 +87,9 @@ enum {r1, r2, r3, r4,r5};
 Robot robot1,robot2,robot3,robot4;//se define la clase para los distintos robots.
 struct record_data//struct for share information between threads
 {
-    int id;
-    int cx;
-    int n;
+    int id; //id of every robot
+    int cx; //center of very marker
+    int n;  //counter for know how many robots there are
 };
 list<record_data> arucoInfo;//list for save the information of all the arucos
 list<record_data>::iterator it;
@@ -178,11 +178,15 @@ void *dataAruco(void *arg){//thread function
 
     return NULL;
 }
+
+
 int main(int argc,char **argv)
 {
     pthread_t detectAruco;
-    SetupRobots();
+    SetupRobots();//prepare the network data of every robot
     record_data data;//struct for save in linked list
+
+    //init aruco code----------
     cv::CommandLineParser parser(argc, argv, keys);
     parser.about(about);
 
@@ -248,9 +252,10 @@ int main(int argc,char **argv)
     fs["camera_matrix"] >> camera_matrix;
     fs["distortion_coefficients"] >> dist_coeffs;
 
-    std::cout << "camera_matrix\n" << camera_matrix << std::endl;
-    std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-    //pthread_create(&record,NULL,recordAruco,(void*)&data);
+    //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
+    //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
+
+    //---------------------------------end aruco code-----
    
     pthread_create(&detectAruco,NULL,dataAruco,NULL);
     while (in_video.grab())
@@ -315,7 +320,6 @@ int main(int argc,char **argv)
                 
                 int cam_center_posX = (cx1 + cx2)/2;
                 data.cx=cam_center_posX;
-                cout<<cam_center_posX<<endl;
                 data.id=ids.at(i);
                 data.n=i;
                 arucoInfo.insert(it,data);
@@ -330,6 +334,7 @@ int main(int argc,char **argv)
         if (key == 27)
             break;*/
     }
+
     in_video.release();
     pthread_exit(NULL);
     return 0;

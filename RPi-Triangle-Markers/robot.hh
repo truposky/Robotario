@@ -6,7 +6,8 @@
 de los robots y las instrucciones que se desean hacer*/
 using namespace std;
 
-
+const float RAD_WHEEL=3.35;
+const int WHEEL_RESOLUTION=20;
 
 class Robot
 {
@@ -14,32 +15,31 @@ class Robot
         int ID ;
         string ip;
         string port; 
-        
 
     public:
-        double radWheel=3.35;
         void SetupRobotData(int,string,string);
         void SetupConection(int& ,string& ,string&);
-        //void rightWheel(wheel a);
-        //void leftWheel(wheel b);
+        void linearVelocity();
+	void angularVelocity();
+        
         void IMU();
 
 };
 
-
-
-
-
-class wheel
+class Wheel: public Robot
 {
-    friend class Robot;
-    private:
-        int N=20;//encoder resolution
-        int R=6;//wheel radius
-    public:
-        double angularSpeed();
-        double linearSpeed();
+	private:
+		float radWheel=3.35;//cm
+		float l=12.4;//cm
 
-};
+	public:
+		void angularSpeed(float&,float&);
+}
+		float A=[2][2]={{L/(2*R),1/R, {-L/(2*R),1/R}};//inverse matrix for compute the angular velocities of every wheel
+	public:
+		void angularSpeed(float&,float&);
+}
+
+
 
 #endif
