@@ -129,7 +129,7 @@ void *dataAruco(void *arg){//thread function
         }
         w=vel/robot1.radWheel;//arduino needs the radial velocity*/
         if(count <1){
-            w=13;
+            w=10;
             count++;
         }
         else if(count<2){
@@ -137,7 +137,7 @@ void *dataAruco(void *arg){//thread function
             count++;
         }
         else{
-            w=-13;
+            w=-10;
             count=0;
         }
         
@@ -315,7 +315,7 @@ int main(int argc,char **argv)
                 
                 int cam_center_posX = (cx1 + cx2)/2;
                 data.cx=cam_center_posX;
-                //cout<<cam_center_posX<<endl;
+                cout<<cam_center_posX<<endl;
                 data.id=ids.at(i);
                 data.n=i;
                 arucoInfo.insert(it,data);
@@ -325,10 +325,10 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-      imshow("Pose estimation", image_copy);
+     /* imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
     in_video.release();
     pthread_exit(NULL);
