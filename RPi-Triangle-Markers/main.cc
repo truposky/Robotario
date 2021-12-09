@@ -122,7 +122,7 @@ void *dataAruco(void *arg){//thread function
     float fs=1/0.5;
     float f0=fs/10;
     float w0=2*M_PI*f0;
-    float A=40;
+    float A=35;
     float vel;//linear velocity of robot
     float td,auxVel=0;
     float w;//angular velocity of robot
@@ -153,10 +153,11 @@ void *dataAruco(void *arg){//thread function
 
         comRobot(id,ip,port,OP_MOVE_WHEEL);
         comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        logo.open("logo.txt",ios::app);
+        string data=operation_recv->data;
+	logo.open("logo.txt",ios::app);
         for(int i=0;i<it->n;i++)
         {
-            logo<<td<<","<<operation_recv->data<<","<<it->degree<<endl;
+            logo<<td<<","<<string<<","<<it->degree<<endl;
         }
         n++;
         logo.close();
