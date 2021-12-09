@@ -156,7 +156,7 @@ void *dataAruco(void *arg){//thread function
         logo.open("logo.txt",ios::app);
         for(int i=0;i<it->n;i++)
         {
-            logo<<td<<","<<velocity_robot[0]<<","<<it->degree<<endl;
+            logo<<td<<","<<operation_recv->data<<","<<it->degree<<endl;
         }
         n++;
         logo.close();
