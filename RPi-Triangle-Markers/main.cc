@@ -31,6 +31,9 @@
 #include <pthread.h> 
 #include <time.h> 
 #include <math.h> 
+#include <fstream>
+#include <iostream>
+
 using namespace std;
 using namespace tinyxml2;
 
@@ -57,8 +60,8 @@ const char* keys  =
 
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 100000 // in usec
-#define MAXSINGNALLENGTH 512
+#define SAMPLINGTIME 500000 // in usec
+#define MAXSINGNALLENGTH 1024
 
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
@@ -72,7 +75,7 @@ void SetupRobots();//copy the information in the xml file to save in the class r
 void error(const char *msg)
 {
     perror(msg);
-    exit(1);
+    exit(-1);
 }
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -87,18 +90,28 @@ enum {r1, r2, r3, r4,r5};
 Robot robot1,robot2,robot3,robot4;//se define la clase para los distintos robots.
 struct record_data//struct for share information between threads
 {
-    std::ostringstream vector_to_marker;
-    std::vector<int> ids;
-    std::vector<std::vector<cv::Point2f> > corners;
-    std::vector<cv::Vec3d> rvecs, tvecs;
+    int id; //id of every robot
+    int cx; //center of very marker
+    int n;  //counter for know how many robots there are
+    float degree;
 };
-struct record_data data;//shared data bewtwen threads
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+list<record_data> arucoInfo;//list for save the information of all the arucos
+list<record_data>::iterator it;
 
+
+pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
+
+float PixeltoDegree(int cx){
+    float degree=(cx+256.47368)/6.38772;
+    return degree;
+}
 
 void *dataAruco(void *arg){//thread function
     int id;
     string ip,port;
+    ofstream logo("logo.txt");
+    logo.close();//file created
+
     robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
@@ -106,68 +119,90 @@ void *dataAruco(void *arg){//thread function
     tval_sample.tv_usec=0;
 
     int n=0;
-    double fs=1/0.1;
-    double f0=fs/30;
-    double w0=2*M_PI*f0;
-    double A=30;
-    double vel,td,auxVel=0;
-    double w;
+    float fs=1/0.5;
+    float f0=fs/10;
+    float w0=2*M_PI*f0;
+    float A=35;
+    float vel;//linear velocity of robot
+    float td,auxVel=0;
+    float w;//angular velocity of robot
     char del=',';
     char wc[sizeof(vel)];
+
+    float velocity_robot[2];
+    float angularWheel[2];
+    
+    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     while(n<MAXSINGNALLENGTH){
-        td=(double)n*0.1; 
-
         gettimeofday(&tval_before,NULL);
-        vel=A*w0*cos(w0*td);
-        if(vel>=0){
-            vel=A*w0;
-        }
-        else{
-            vel=-A*w0;
-        }
-        w=vel/robot1.radWheel;//arduino needs the radial velocity
-
-        cout<<"vel:"<<vel<<endl;
-        cout<<"w:"<<w<<endl;
-
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        snprintf(operation_send.data,sizeof(w),"%2.4f",w);     
-        snprintf(wc,sizeof(w),"%2.4f",w);
+        td=(float)n*0.5; 
+        vel=A*w0*sin(w0*td);//linear velocity
+        w=0;
+       // cout<<vel<<endl;
+        velocity_robot[0]=w;
+        velocity_robot[1]=vel;
+        robot1.angularWheelSpeed(angularWheel,velocity_robot);
+       // cout<<"data ";
+      // cout<<angularWheel[0]<<",";
+      // cout<<angularWheel[1]<<endl;
+        snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
+        snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
         strcat(operation_send.data,&del); 
         strcat(operation_send.data,wc); 
-        if(vel != auxVel){
-            comRobot(id,ip,port,OP_MOVE_WHEEL);
-            auxVel=vel;
+      // cout<<operation_send.data<<endl;
+
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        string data=operation_recv->data;
+	logo.open("logo.txt",ios::app);
+        for(int i=0;i<it->n;i++)
+        {
+            logo<<td<<","<<string<<","<<it->degree<<endl;
         }
         n++;
+        logo.close();
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
-        if(tval_sample.tv_usec != SAMPLINGTIME)
+        
+        if( tval_sample.tv_usec<0)
         {
-            while(tval_sample.tv_usec<SAMPLINGTIME){
-                gettimeofday(&tval_after,NULL);
-                timersub(&tval_after,&tval_before,&tval_sample);
-            }
-            //usleep(SAMPLINGTIME-tval_sample.tv_usec);
-            
+            error("error time");
         }
-        else if( tval_sample.tv_usec<0 || tval_sample.tv_usec>SAMPLINGTIME)
+        else if (tval_sample.tv_usec>SAMPLINGTIME){
+            //error("time of program greater than sample time");
+            cout<<"tiempo de programa mayor"<<endl;
+        }
+        else
         {
-            error("error short sample time");
+           
+            usleep(SAMPLINGTIME-tval_sample.tv_usec);
+            
         }
         
         
        
         
     }
+    vel=0;
+    w=0;
+    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+    snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
+    snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
+    strcat(operation_send.data,&del); 
+    strcat(operation_send.data,wc); 
 
+    comRobot(id,ip,port,OP_MOVE_WHEEL);
     return NULL;
 }
+
+
 int main(int argc,char **argv)
 {
     pthread_t detectAruco;
-    SetupRobots();
+    SetupRobots();//prepare the network data of every robot
+    record_data data;//struct for save in linked list
 
+    //init aruco code----------
     cv::CommandLineParser parser(argc, argv, keys);
     parser.about(about);
 
@@ -233,33 +268,34 @@ int main(int argc,char **argv)
     fs["camera_matrix"] >> camera_matrix;
     fs["distortion_coefficients"] >> dist_coeffs;
 
-    std::cout << "camera_matrix\n" << camera_matrix << std::endl;
-    std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-    //pthread_create(&record,NULL,recordAruco,(void*)&data);
+    //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
+    //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
+
+    //---------------------------------end aruco code-----
    
     pthread_create(&detectAruco,NULL,dataAruco,NULL);
     while (in_video.grab())
     {
         in_video.retrieve(image);
         image.copyTo(image_copy);
-        //std::vector<int> ids;
-        //std::vector<std::vector<cv::Point2f> > corners;
-        cv::aruco::detectMarkers(image, dictionary, data.corners, data.ids);
+        std::vector<int> ids;
+        std::vector<std::vector<cv::Point2f> > corners;
+        cv::aruco::detectMarkers(image, dictionary, corners, ids);
 
         // if at least one marker detected
-        if (data.ids.size() > 0)
+        if (ids.size() > 0)
         {
-            cv::aruco::drawDetectedMarkers(image_copy, data.corners, data.ids);
-            //std::vector<cv::Vec3d> rvecs, tvecs;
-            cv::aruco::estimatePoseSingleMarkers(data.corners, marker_length_m,
-                    camera_matrix, dist_coeffs, data.rvecs, data.tvecs);
+            cv::aruco::drawDetectedMarkers(image_copy, corners, ids);
+            std::vector<cv::Vec3d> rvecs, tvecs;
+            cv::aruco::estimatePoseSingleMarkers(corners, marker_length_m,
+                    camera_matrix, dist_coeffs, rvecs, tvecs);
                     
             /*std::cout << "Translation: " << tvecs[0]
                 << "\tRotation: " << rvecs[0] 
                 << std::endl;
             */
             // Draw axis for each marker
-            for(int i=0; i < data.ids.size(); i++)
+            /*for(int i=0; i < data.ids.size(); i++)
             {
                 cv::aruco::drawAxis(image_copy, camera_matrix, dist_coeffs,
                         data.rvecs[i], data.tvecs[i], 0.1);
@@ -272,6 +308,7 @@ int main(int argc,char **argv)
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
                                  << "x: " << std::setw(8) << data.tvecs[0](0);
+                            
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
@@ -289,16 +326,36 @@ int main(int argc,char **argv)
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
+            }*/
+            //mutex
+            pthread_mutex_lock(&mutex_);
+            it=arucoInfo.begin();
+            for(int i=0; i < ids.size(); i++)
+            {
+                int cx1 =static_cast<int> ((corners.at(i).at(1).x - corners.at(i).at(0).x)/2 + corners.at(i).at(0).x);
+                int cx2 =static_cast<int> ((corners.at(i).at(3).x  - corners.at(i).at(2).x )/2 + corners.at(i).at(2).x );
+                int cam_center_posX = (cx1 + cx2)/2;
+                data.cx=cam_center_posX;
+                data.id=ids.at(i);
+                data.n=i+1;
+                data.degree=PixeltoDegree(data.cx);
+                arucoInfo.insert(it,data);
+                it++;
             }
+            int status = pthread_mutex_unlock (&mutex_);
+            if (status != 0)
+             exit(status);
+            
         }
+        //end mutex
 
-        imshow("Pose estimation", image_copy);
+     /* imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
-     in_video.release();
 
+    in_video.release();
     pthread_exit(NULL);
     return 0;
 }
@@ -359,7 +416,6 @@ int comRobot(int id,string ip,string port,int instruction){
     int rv;
     int numbytes;
     struct sockaddr_storage robot_addr;
-    cout<<"puert Robot:"<<port<<endl;
     socklen_t addr_len = sizeof robot_addr;
 
 
@@ -398,57 +454,47 @@ int comRobot(int id,string ip,string port,int instruction){
     operation_send.id=id;//se asigna el id del robot1
     string data;
     string delimiter=":";
-    /*cout<<"elige operacion"<<endl;//se debe ingresar la operacion y los correspondientes datos
-    operationSend();//se elige la operacion a enviar
-    if(operation_send.op != OP_SALUDO && operation_send.op != OP_VEL_ROBOT){
-        //se ingresa la informacion correspondiente a la operacion elegida.
-        cout<<"ingresa datos: ";
-        cin.ignore();
-        cin>>operation_send.data;
-        operation_send.len = strlen (operation_send.data);
-    }*/
     operation_send.len = strlen (operation_send.data);
     operation_send.op=instruction;
 
-    if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1) {
+    if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
+    {
         perror("talker: sendto");
         exit(1);
     }
+    if(operation_send.op != OP_MOVE_WHEEL)
+    { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
+        if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
+        }
+        operation_recv=( struct appdata*)&buf;
+        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) ){
 
-    //cout<<"mensaje enviado"<<endl;
+            cout<<"(servidor) unidad de datos incompleta\n";
+        }
+        else{
+              // relaiza operacion solicitada por el cliente 
 
-    if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
+            switch (operation_recv->op){
+                case OP_SALUDO:
+                    cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_MESSAGE_RECIVE:
+                    cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_VEL_ROBOT:
+                    data=operation_recv->data;
+                    char del =',';
+                    vector<string> speed;
+                    tokenize(data,del,speed);
+                    cout<<speed[0];//rueda derecha
+                    cout<<","<<speed[1]<<endl;//rueda izquierda
+                break;
+            }
+       
+        memset (buf, '\0', MAXDATASIZE);
+        }
     }
-    operation_recv=( struct appdata*)&buf;
-    if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) ){
-
-        cout<<"(servidor) unidad de datos incompleta\n";
-    }
-    else{
-        
-       /* cout<<"(servidor) id "<<operation_recv->id;
-        cout<<" operacion solicitada [op 0x]"<<operation_recv->op;
-        cout<<" contenido "<<operation_recv->data<<endl;*/
-    }
-    // relaiza operacion solicitada por el cliente 
-
-    switch (operation_recv->op){
-        case OP_SALUDO:
-           // cout<<" contenido "<<operation_recv->data<<endl;
-        break;
-        case OP_MESSAGE_RECIVE:
-           // cout<<" contenido "<<operation_recv->data<<endl;
-        break;
-        case OP_VEL_ROBOT:
-            data=operation_recv->data;
-            char del =',';
-            vector<string> speed;
-            tokenize(data,del,speed);
-            cout<<"velocidad rueda derecha: "<<speed[0]<<endl;
-            cout<<"velocidad rueda izquierda: "<<speed[1]<<endl;
-            break;
-    memset (buf, '\0', MAXDATASIZE);
-    }
+   
     
     freeaddrinfo(servinfo);
     

@@ -14,32 +14,37 @@ class Robot
         int ID ;
         string ip;
         string port; 
-        
 
     public:
-        double radWheel=3.35;
+
+        const float R=3.35;//cm
+		const float L=12.4;//cm distance between wheels
+        static const int  WHEEL_RESOLUTION=20;
+        static const int NUMWHEELS=2;
+        float A[2][2]={{L/(2*R),1/R}, {-L/(2*R),1/R}};//inverse matrix for compute the angular velocities of every wheel
+        void angularWheelSpeed(float (&w_wheel)[NUMWHEELS],float velocity_robot[2]);
         void SetupRobotData(int,string,string);
         void SetupConection(int& ,string& ,string&);
-        //void rightWheel(wheel a);
-        //void leftWheel(wheel b);
+        void linearVelocity();
+	    void angularVelocity();
+        
         void IMU();
 
 };
 
-
-
-
-
-class wheel
+/*class Wheel: public Robot
 {
-    friend class Robot;
-    private:
-        int N=20;//encoder resolution
-        int R=6;//wheel radius
-    public:
-        double angularSpeed();
-        double linearSpeed();
+	public:
+    
+		
+        static const float R;//cm
+		static const float L;//cm distance between wheels
+        static const int  WHEEL_RESOLUTION=20;
+        static const int NUMWHEELS=2;
+        float A[2][2]={{L/(2*R),1/R}, {-L/(2*R),1/R}};//inverse matrix for compute the angular velocities of every wheel
+        void angularSpeed(float (&w_wheel)[NUMWHEELS],float velocity_robot[2]);
+};*/
 
-};
+
 
 #endif

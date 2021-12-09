@@ -26,7 +26,7 @@ struct appdata{
 
 //----------------parametros RObot-------------------
 #define D 6.7//cm
-#define R 3.2 //aprox
+#define R 3.35 //cm
 #define L 9.5 // cm distancia entre ruedas
 
 
@@ -39,13 +39,13 @@ const int pinIN3 = 9;//indica sentido de giro
 const int pinIN4 = 10;
 const int pinENB = 11;//Señal de PWM
 
-const int pinMotorD[3] = { pinENA, pinIN1, pinIN2 };
-const int pinMotorI[3] = { pinENB, pinIN3, pinIN4 };
+const int pinMotorI[3] = { pinENA, pinIN1, pinIN2 };
+const int pinMotorD[3] = { pinENB, pinIN3, pinIN4 };
 
 //-----------------contador encoder------------------------------------------------------------------------------------
 const int             N=                  20;//Resolucion encoder       
-const int             encoderD =          13;//pin de entrada de encoder derecha
-const int             encoderI=           15;//pin de entrada de encoder izquierda
+const int             encoderI =          13;//pin de entrada de encoder derecha
+const int             encoderD=           15;//pin de entrada de encoder izquierda
 volatile unsigned     encoder_countD=      0;//cuenta los pulsos de encoder derecha
 int                   encoder_countD_after=0;
 int                   encoder_countI_after=0;
@@ -72,7 +72,7 @@ volatile unsigned long deltaTimeStopI;
 
 //------------------------debounce-----------------------------------------------------------------------------------
 //Se usara para evitar que cuenten pulsos debido a rebotes o ruido del sistema.
-# define               TIMEDEBOUNCE        8 //(ms) es el tiempo minimo entre pulsos
+# define               TIMEDEBOUNCE        7.9 //(ms) es el tiempo minimo entre pulsos
 volatile unsigned long timeAfterDebounceD= 0;
 volatile unsigned long timeBeforeDebounceD=0;
 volatile unsigned long deltaDebounceD=     0;
@@ -87,7 +87,6 @@ double                 distanciaD=0;
 double wI,wD;//sirven para medir la velocidad de cada rueda
 //---------------------VARIABLES DEL CONTROLADOR PID-----------------------------------------------------------------------------
 //+++++++++++ variables internas del controlador++++++++++++++
-double                   k=1;//se mide en milisegundos y sirve para establecer un tiempo de muestreo discreto
 //++++++++++++++++++rueda derecha+++++++++++++++++
 unsigned long         currentTimeD, previousTimeD=0;;
 double                elapsedTimeD;
@@ -97,11 +96,7 @@ unsigned long         currentTimeI, previousTimeI=0;;
 double                elapsedTimeI;
 double                errorI=0, lastErrorI=0, cumErrorI=0, rateErrorI;
 // +++++++++++++++  ++++Constantes del controlador+++++++++++++++
-double                kp=0.02, Ki=0.00007, Kd=0.003;
-// ++++++++++++++++++variables externas del controlador++++++++++++++++++
-double                Input, output;
-//double                Setpoint;//se usa para indicar el valor deseado unidades en rad/s
-
+double                kp=0.00, Ki=0.000, Kd=0;
 //-------------------------GIROSCOPIO------------------------------------------------------------------------------------------------//
 float x, y, z;
 const float ERR_GIROSCOPE=3.05;
@@ -111,10 +106,16 @@ const int MAXFIT=3;//maximum adjustmen that the gyroscope does to the pwm
 double setPointGWD;
 double setPointGWI;
 //------------------------feedforward Y PWM----------------------------------------------------//
-int    PWM_D;
-int    PWM_I;
-double setpointWD;
-double setpointWI;
+int    PWM_D=0;
+int    PWM_I=0;
+double setpointWD=0;
+double setpointWI=0;
 double SetpointD,SetpointI,SetpointAnterior=0;//se usa para indicar el valor de referncia es temporal se debera usar uno para cada rueda
 bool backD=false,backI=false;
-#define MINPWM 76
+#define MINPWM 90
+#define MAXPWM 255
+#define LIM_LINEAL 13.5
+//----------------------sampling time variables----------------------------------------------------------------------------
+#define SAMPLINGTIME 3.5//ms
+unsigned long currentTime=0, timeAfter=0;
+double elapsedTime=0;

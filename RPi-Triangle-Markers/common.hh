@@ -57,6 +57,7 @@ struct appdata{
 #define OP_MOVE_WHEEL       0x0002
 #define OP_STOP_WHEEL       0x0003
 #define OP_VEL_ROBOT        0X0005//devuelve la velocidad de las ruedas en rad/s
+#define OP_IMU              0x0006
 //operaciones cliente
 #define OP_MESSAGE_RECIVE   0x0004
 //saludo esta en ambas
