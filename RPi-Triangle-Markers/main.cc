@@ -131,7 +131,7 @@ void *dataAruco(void *arg){//thread function
 
     float velocity_robot[2];
     float angularWheel[2];
-    
+    int meanPoint=0;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     while(n<MAXSINGNALLENGTH){
         gettimeofday(&tval_before,NULL);
@@ -151,15 +151,24 @@ void *dataAruco(void *arg){//thread function
         strcat(operation_send.data,wc); 
       // cout<<operation_send.data<<endl;
 
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        string data=operation_recv->data;
-	logo.open("logo.txt",ios::app);
-        for(int i=0;i<it->n;i++)
-        {
-            logo<<td<<","<<string<<","<<it->degree<<endl;
-        }
+        //comRobot(id,ip,port,OP_MOVE_WHEEL);
+        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        //string data=operation_recv->data;
+	    logo.open("logo.txt",ios::app);
+         if(arucoInfo.size()>0){
+            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
+            {
+                cout<<"id:"<<it->id<<":"<<it->cx<<endl;;
+                //meanPoint=++it->cx;
+                //cout<<it->cx;
+            // logo<<td<<","<<data<<","<<it->degree<<endl;
+            }
+    }
+        meanPoint=meanPoint/2;
+        //cout<<"meanpoint: "<<meanPoint<<endl;
         n++;
+        meanPoint=0;
+        
         logo.close();
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
@@ -198,6 +207,7 @@ void *dataAruco(void *arg){//thread function
 
 int main(int argc,char **argv)
 {
+    arucoInfo.resize(2);
     pthread_t detectAruco;
     SetupRobots();//prepare the network data of every robot
     record_data data;//struct for save in linked list
@@ -272,7 +282,7 @@ int main(int argc,char **argv)
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
 
     //---------------------------------end aruco code-----
-   
+    arucoInfo.clear();
     pthread_create(&detectAruco,NULL,dataAruco,NULL);
     while (in_video.grab())
     {
@@ -328,31 +338,38 @@ int main(int argc,char **argv)
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
             }*/
             //mutex
-            pthread_mutex_lock(&mutex_);
-            it=arucoInfo.begin();
+           pthread_mutex_lock(&mutex_);
+            
+            while(!arucoInfo.empty()){
+                arucoInfo.pop_back();
+            }
             for(int i=0; i < ids.size(); i++)
             {
+                
                 int cx1 =static_cast<int> ((corners.at(i).at(1).x - corners.at(i).at(0).x)/2 + corners.at(i).at(0).x);
                 int cx2 =static_cast<int> ((corners.at(i).at(3).x  - corners.at(i).at(2).x )/2 + corners.at(i).at(2).x );
                 int cam_center_posX = (cx1 + cx2)/2;
+                
                 data.cx=cam_center_posX;
                 data.id=ids.at(i);
-                data.n=i+1;
                 data.degree=PixeltoDegree(data.cx);
-                arucoInfo.insert(it,data);
-                it++;
+                arucoInfo.push_back(data);
             }
-            int status = pthread_mutex_unlock (&mutex_);
+           int status = pthread_mutex_unlock (&mutex_);
             if (status != 0)
              exit(status);
             
+           // cout<<"data.cx: "<<data.cx<<endl;
+        }
+        else{
+            arucoInfo.clear();
         }
         //end mutex
 
-     /* imshow("Pose estimation", image_copy);
+      imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;*/
+            break;
     }
 
     in_video.release();
@@ -563,4 +580,10 @@ void operationSend(){
     }
 
     
+}
+
+void bisectriz(){
+
+
+
 }
