@@ -145,7 +145,7 @@ void *dataAruco(void *arg){//thread function
     float velocity_robot[2];
     float angularWheel[2];
     int meanPoint=0;
-    //while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
+    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     while(n<MAXSINGNALLENGTH){
 
         gettimeofday(&tval_before,NULL);
@@ -380,10 +380,10 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-      imshow("Pose estimation", image_copy);
+      /*imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
 
     in_video.release();
