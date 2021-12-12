@@ -60,9 +60,10 @@ const char* keys  =
 
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 500000 // in usec
+#define SAMPLINGTIME 600000 // in usec
 #define MAXSINGNALLENGTH 1024
-
+#define CENTER 108 //this is the setpoint for a distance between markers of 30 cm
+const float KP=0.02;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 
@@ -95,6 +96,7 @@ struct record_data//struct for share information between threads
     int n;  //counter for know how many robots there are
     float degree;
 };
+
 list<record_data> arucoInfo;//list for save the information of all the arucos
 list<record_data>::iterator it;
 
@@ -107,11 +109,22 @@ float PixeltoDegree(int cx){
 }
 
 void *dataAruco(void *arg){//thread function
+
+    struct logo_data{
+        float td;
+        string wheel_vel;
+
+        vector<int> id;
+        vector<float> degree;
+    };
     int id;
     string ip,port;
     ofstream logo("logo.txt");
     logo.close();//file created
 
+    list<logo_data> savelog;
+    list<logo_data>::iterator iter;
+    logo_data info;
     robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
@@ -119,10 +132,10 @@ void *dataAruco(void *arg){//thread function
     tval_sample.tv_usec=0;
 
     int n=0;
-    float fs=1/0.5;
-    float f0=fs/10;
+    float fs=1/0.6;
+    float f0=fs/6;
     float w0=2*M_PI*f0;
-    float A=35;
+    float A=20;
     float vel;//linear velocity of robot
     float td,auxVel=0;
     float w;//angular velocity of robot
@@ -132,44 +145,39 @@ void *dataAruco(void *arg){//thread function
     float velocity_robot[2];
     float angularWheel[2];
     int meanPoint=0;
-    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
+    //while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     while(n<MAXSINGNALLENGTH){
+
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.5; 
+        td=(float)n*0.6; 
+        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        info.wheel_vel=operation_recv->data;
+        info.td=td;
+         if(arucoInfo.size()>0){
+            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
+            {
+                info.id.push_back(it->id);
+                info.degree.push_back(it->degree);
+                meanPoint=++it->cx;
+            }
+        }
+        meanPoint=meanPoint/2;
         vel=A*w0*sin(w0*td);//linear velocity
-        w=0;
-       // cout<<vel<<endl;
+        w=(CENTER-meanPoint)*KP;//angular velocity
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
-       // cout<<"data ";
-      // cout<<angularWheel[0]<<",";
-      // cout<<angularWheel[1]<<endl;
         snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
         snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
         strcat(operation_send.data,&del); 
         strcat(operation_send.data,wc); 
-      // cout<<operation_send.data<<endl;
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        
 
-        //comRobot(id,ip,port,OP_MOVE_WHEEL);
-        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        //string data=operation_recv->data;
-	    logo.open("logo.txt",ios::app);
-         if(arucoInfo.size()>0){
-            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
-            {
-                cout<<"id:"<<it->id<<":"<<it->cx<<endl;;
-                //meanPoint=++it->cx;
-                //cout<<it->cx;
-            // logo<<td<<","<<data<<","<<it->degree<<endl;
-            }
-    }
-        meanPoint=meanPoint/2;
-        //cout<<"meanpoint: "<<meanPoint<<endl;
+	  
         n++;
         meanPoint=0;
-        
-        logo.close();
+        savelog.push_back(info);
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
@@ -179,7 +187,7 @@ void *dataAruco(void *arg){//thread function
         }
         else if (tval_sample.tv_usec>SAMPLINGTIME){
             //error("time of program greater than sample time");
-            cout<<"tiempo de programa mayor"<<endl;
+            cout<<"tiempo de programa mayor "<<tval_sample.tv_usec<<endl;
         }
         else
         {
@@ -199,16 +207,22 @@ void *dataAruco(void *arg){//thread function
     snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
     strcat(operation_send.data,&del); 
     strcat(operation_send.data,wc); 
-
     comRobot(id,ip,port,OP_MOVE_WHEEL);
-    return NULL;
+
+    //save data on logo.txt
+    logo.open("logo.txt");
+    for(iter=savelog.begin();iter !=savelog.end();iter++){
+        logo<<iter->td<<","<<iter->wheel_vel;
+        for(int i=0; i<iter->id.size();i++){
+            logo<<iter->id.at(i)<<","<<iter->degree.at(i);
+        }
+        logo<<endl;
+    }
 }
-
-
 int main(int argc,char **argv)
 {
-    arucoInfo.resize(2);
     pthread_t detectAruco;
+
     SetupRobots();//prepare the network data of every robot
     record_data data;//struct for save in linked list
 
@@ -340,7 +354,7 @@ int main(int argc,char **argv)
             //mutex
            pthread_mutex_lock(&mutex_);
             
-            while(!arucoInfo.empty()){
+            while(!arucoInfo.empty()){//avoid fill list more than markers there are
                 arucoInfo.pop_back();
             }
             for(int i=0; i < ids.size(); i++)
@@ -508,7 +522,7 @@ int comRobot(int id,string ip,string port,int instruction){
                 break;
             }
        
-        memset (buf, '\0', MAXDATASIZE);
+        //memset (buf, '\0', MAXDATASIZE);
         }
     }
    
@@ -580,10 +594,4 @@ void operationSend(){
     }
 
     
-}
-
-void bisectriz(){
-
-
-
 }
