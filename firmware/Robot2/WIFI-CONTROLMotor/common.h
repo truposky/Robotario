@@ -112,10 +112,11 @@ double setpointWD=0;
 double setpointWI=0;
 double SetpointD,SetpointI,SetpointAnterior=0;//se usa para indicar el valor de referncia es temporal se debera usar uno para cada rueda
 bool backD=false,backI=false;
-#define MINPWM 90
+#define MINPWM 94
 #define MAXPWM 255
 #define LIM_LINEAL 13.5
+#define MINSETPOINT 5.5 //this is the minimal speed for every wheel, with that the code avoid the dead zone
 //----------------------sampling time variables----------------------------------------------------------------------------
-#define SAMPLINGTIME 3.5//ms
+#define SAMPLINGTIME 8620//us
 unsigned long currentTime=0, timeAfter=0;
 double elapsedTime=0;

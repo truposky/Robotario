@@ -145,12 +145,13 @@ void *dataAruco(void *arg){//thread function
     float velocity_robot[2];
     float angularWheel[2];
     int meanPoint=0;
+ 
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
-    while(n<MAXSINGNALLENGTH){
 
+    while(n<MAXSINGNALLENGTH){
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.6; 
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
         info.wheel_vel=operation_recv->data;
         info.td=td;
          if(arucoInfo.size()>0){
@@ -162,6 +163,7 @@ void *dataAruco(void *arg){//thread function
             }
         }
         meanPoint=meanPoint/2;
+        cout<<meanPoint<<endl;
         vel=A*w0*sin(w0*td);//linear velocity
         w=(CENTER-meanPoint)*KP;//angular velocity
         velocity_robot[0]=w;
@@ -380,10 +382,10 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-      /*imshow("Pose estimation", image_copy);
+      imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;*/
+            break;
     }
 
     in_video.release();
