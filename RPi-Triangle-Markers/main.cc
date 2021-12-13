@@ -63,7 +63,7 @@ const char* keys  =
 #define SAMPLINGTIME 500000 // in usec
 #define MAXSINGNALLENGTH 1024
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.0009;
+const float KP=0.000795;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 
@@ -133,9 +133,9 @@ void *dataAruco(void *arg){//thread function
 
     int n=0;
     float fs=1/0.5;
-    float f0=fs/4;
+    float f0=fs/3.5;
     float w0=2*M_PI*f0;
-    float A=12;
+    float A=8;
     float vel;//linear velocity of robot
     float td,auxVel=0;
     float w=0;//angular velocity of robot
@@ -144,33 +144,47 @@ void *dataAruco(void *arg){//thread function
 
     float velocity_robot[2];
     float angularWheel[2];
-    int meanPoint=0;
- 
+    int meanPoint=0,auxId=0;
+    float auxDegree=0;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
 
     while(n<MAXSINGNALLENGTH){
+        
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.6; 
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        info.wheel_vel=operation_recv->data;
+        td=(float)n*0.5; 
+        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        //info.wheel_vel=operation_recv->data;
         info.td=td;
 	    int cont=0;
+        auxDegree=0;
         if(arucoInfo.size()>0)
         {
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back(it->id);
                 info.degree.push_back(it->degree);
-                //cout<<"loop:"<<it->id<<","<<it->degree<<endl;
+                cout<<"loop:"<<it->id<<","<<it->degree<<endl;
                 meanPoint+=it->cx;
+                
+                auxId=it->id;
+                if(cont ==0){
+                    auxDegree=it->degree;
+                }
+                else if(cont ==1)
+                {
+                    auxDegree=auxDegree-it->degree;
+                    if(auxDegree<0)auxDegree=-auxDegree;
+                }
                 cont++;
+                
             }
         }
-	 
+        
         meanPoint=meanPoint/2;
-        cout<<"meanpoint:"<<meanPoint<<endl;
+        cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);//linear velocity
-	w=0;
+        if (auxDegree>48 && vel >0) vel=-vel;
+        w=0;
         if (cont==2 && vel !=0)
         {
             float error=(float)(CENTER-meanPoint);
@@ -193,11 +207,11 @@ void *dataAruco(void *arg){//thread function
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
-         cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
         memcpy(operation_send.data,&angularWheel[0],sizeof(float));
         strcat(operation_send.data,&del); 
         memcpy(operation_send.data+sizeof(float)+sizeof(del),&angularWheel[1],sizeof(float));
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        //comRobot(id,ip,port,OP_MOVE_WHEEL);
         
 
 	  
@@ -206,7 +220,6 @@ void *dataAruco(void *arg){//thread function
         savelog.push_back(info);
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
-        
         if( tval_sample.tv_usec<0)
         {
             error("error time");
@@ -489,6 +502,11 @@ int comRobot(int id,string ip,string port,int instruction){
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
     return 1;
     }
+           // set timeout
+    struct timeval timeout;
+    timeout.tv_sec = 10;//sec
+    timeout.tv_usec = 0;//microsecond
+    
     // loop through all the results and make a socket
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
@@ -496,12 +514,15 @@ int comRobot(int id,string ip,string port,int instruction){
             perror("talker: socket");
             continue;
         }
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+            cout<<"fail"<<endl;//perror("setsockopt failed:");
+        }
     break;
    
     }
     int enable = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-    error("setsockopt(SO_REUSEADDR) failed");
+    /*if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+    error("setsockopt(SO_REUSEADDR) failed");*/
 
     if (p == NULL) {
         fprintf(stderr, "talker: failed to create socket\n");
