@@ -60,10 +60,10 @@ const char* keys  =
 
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 600000 // in usec
+#define SAMPLINGTIME 500000 // in usec
 #define MAXSINGNALLENGTH 1024
-#define CENTER 108 //this is the setpoint for a distance between markers of 30 cm
-const float KP=0.02;
+#define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
+const float KP=0.0009;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 
@@ -132,13 +132,13 @@ void *dataAruco(void *arg){//thread function
     tval_sample.tv_usec=0;
 
     int n=0;
-    float fs=1/0.6;
-    float f0=fs/6;
+    float fs=1/0.5;
+    float f0=fs/4;
     float w0=2*M_PI*f0;
-    float A=20;
+    float A=12;
     float vel;//linear velocity of robot
     float td,auxVel=0;
-    float w;//angular velocity of robot
+    float w=0;//angular velocity of robot
     char del=',';
     char wc[sizeof(vel)];
 
@@ -151,28 +151,52 @@ void *dataAruco(void *arg){//thread function
     while(n<MAXSINGNALLENGTH){
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.6; 
-        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
         info.wheel_vel=operation_recv->data;
         info.td=td;
-         if(arucoInfo.size()>0){
+	    int cont=0;
+        if(arucoInfo.size()>0)
+        {
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back(it->id);
                 info.degree.push_back(it->degree);
-                meanPoint=++it->cx;
+                //cout<<"loop:"<<it->id<<","<<it->degree<<endl;
+                meanPoint+=it->cx;
+                cont++;
             }
         }
+	 
         meanPoint=meanPoint/2;
-        cout<<meanPoint<<endl;
+        cout<<"meanpoint:"<<meanPoint<<endl;
         vel=A*w0*sin(w0*td);//linear velocity
-        w=(CENTER-meanPoint)*KP;//angular velocity
+	w=0;
+        if (cont==2 && vel !=0)
+        {
+            float error=(float)(CENTER-meanPoint);
+            float minerror=20;
+            if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
+            {
+                w=(float)(CENTER-meanPoint)*KP;//angular velocity
+                //if(vel<0)w=-w;
+                cout<<"error:"<<error<<endl;
+            }
+            else 
+            {
+                w=0;
+            }
+	
+        }
+
+        
+	   
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
-        snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
-        snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
+         cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+        memcpy(operation_send.data,&angularWheel[0],sizeof(float));
         strcat(operation_send.data,&del); 
-        strcat(operation_send.data,wc); 
+        memcpy(operation_send.data+sizeof(float)+sizeof(del),&angularWheel[1],sizeof(float));
         comRobot(id,ip,port,OP_MOVE_WHEEL);
         
 
@@ -204,13 +228,13 @@ void *dataAruco(void *arg){//thread function
     }
     vel=0;
     w=0;
-    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+   /* robot1.angularWheelSpeed(angularWheel,velocity_robot);
     snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
     snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
     strcat(operation_send.data,&del); 
     strcat(operation_send.data,wc); 
-    comRobot(id,ip,port,OP_MOVE_WHEEL);
-
+    //comRobot(id,ip,port,OP_MOVE_WHEEL);
+    */
     //save data on logo.txt
     logo.open("logo.txt");
     for(iter=savelog.begin();iter !=savelog.end();iter++){
@@ -369,6 +393,7 @@ int main(int argc,char **argv)
                 data.cx=cam_center_posX;
                 data.id=ids.at(i);
                 data.degree=PixeltoDegree(data.cx);
+                //cout<<data.id<<","<<data.degree<<endl;
                 arucoInfo.push_back(data);
             }
            int status = pthread_mutex_unlock (&mutex_);
@@ -382,10 +407,10 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-      imshow("Pose estimation", image_copy);
+      /*imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
 
     in_video.release();
