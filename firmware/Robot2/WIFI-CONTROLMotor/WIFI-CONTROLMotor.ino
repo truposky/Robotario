@@ -1,24 +1,20 @@
- //robot2
+//robot2
 #include <WiFiNINA.h>
 #include "common.h"
-#include <math.h>
-#include "MeanFilterLib.h"
-#include <Arduino_LSM6DS3.h>
-#include <string>
-#include <vector>
+
 
 
 using namespace std;
 //WiFi variable setup
-//char ssid[] = "Robotarium";     // your network SSID (name)
-//char pass[] = "robotarium";    // your network password (use for WPA, or use as key for WEP)
-char ssid[] = "MiFibra-4300";     // your network SSID (name)
-char pass[] = "SzreaH22";    // your network password (use for WPA, or use as key for WEP)
+char ssid[] = "Robotarium";     // your network SSID (name)
+char pass[] = "robotarium";    // your network password (use for WPA, or use as key for WEP)
+//char ssid[] = "MiFibra-4300";     // your network SSID (name)
+//char pass[] = "SzreaH22";    // your network password (use for WPA, or use as key for WEP)
 int status = WL_IDLE_STATUS;
 //UDP variables setup
 /*-----------ip setup-----------------*/
 IPAddress ip_arduino1(192,168,1,5);
-IPAddress ip_server(192,168,1,2);
+IPAddress ip_server(192,168,1,3);
 WiFiUDP Udp;
 unsigned int localPort = 4243;      // local port to listen on
 char packetBuffer[256]; //buffer to hold incoming packet
@@ -179,13 +175,13 @@ void loop() {
          
          moveWheel(PWM_I,setpointWI,pinMotorI,backI);
          moveWheel(PWM_D,setpointWD,pinMotorD,backD);
-     Serial.print(PWM_D);
+     /*Serial.print(PWM_D);
      Serial.print(",");
      Serial.print(PWM_I);
      Serial.print(",");
      Serial.print(wD);
      Serial.print(",");
-     Serial.println(wI);
+     Serial.println(wI);*/
      }
        // start the UDP on port 4243
       // if there's data available, read a packet
@@ -295,9 +291,16 @@ void op_moveWheel()
   char del =',';
   vector<string> vel;
   tokenize(data, del,vel);
-  setpointWD=stod(vel[0]);
-  setpointWI=stod(vel[1]);
-  
+  float f,f2;
+  //setpointWD=stod(vel[0]);
+  //setpointWI=stod(vel[1]);
+  memcpy(&f,vel[0].c_str(),sizeof (float));
+  memcpy(&f2,vel[1].c_str(),sizeof (float));
+  setpointWD=(double)f;
+  setpointWI=(double)f2;
+  Serial.print(setpointWD);
+  Serial.print(",");
+  Serial.println(setpointWI);
   if(setpointWD<0)
   {
     setPointGWD=setpointWD;
@@ -323,7 +326,7 @@ void op_moveWheel()
   feedForwardI();
 
   moveWheel(PWM_I,setpointWI,pinMotorI,backI);
-    moveWheel(PWM_D,setpointWD,pinMotorD,backD);
+  moveWheel(PWM_D,setpointWD,pinMotorD,backD);
   for(int i=0;i<200;i++){
     meanFilterD.AddValue(deltaTimeD);
     meanFilterI.AddValue(deltaTimeI);
@@ -383,7 +386,7 @@ void fullStop(const int pinMotor[3])
 void moveWheel(int pwm,double w, const int pinMotor[3],bool back)
 {
   
-  if(pwm==0 || w==0){
+  if(pwm==0 || ((int)w)==0){
     fullStop(pinMotor);
   }
   else
@@ -458,9 +461,8 @@ int pidD(double wD)
     if(lastErrorD<0 && errorD>0)cumErrorD=errorD;
     if(cumErrorD>15|| cumErrorD<-20) cumErrorD=0;                         //se resetea el error acumulativo
     rateErrorD = (errorD - lastErrorD) / SAMPLINGTIME*1000;         // calcular la derivada del error
-    outputD =static_cast<int> (round(0.04*errorD +0.038*cumErrorD + 0*rateErrorD ));     // calcular la salida del PID     0.0025*cumErrorD
+    outputD =static_cast<int> (round(0.043*errorD +0.039*cumErrorD + 0*rateErrorD ));     // calcular la salida del PID     0.0025*cumErrorD
     lastErrorD = errorD;                                      // almacenar error anterior
-    Serial.println(errorD);
   }
   
   return outputD;
@@ -486,7 +488,7 @@ int pidI(double wI)
     if(cumErrorI>15||cumErrorI<-20) cumErrorI=0;     //se resetea el error acumulativo 
     rateErrorI = (errorI - lastErrorI) /(SAMPLINGTIME*1000);         // calcular la derivada del error
     
-    outputI = static_cast<int> (round(0.04*errorI  + 0.036*cumErrorI + 0*rateErrorI));     // calcular la salida del PID 
+    outputI = static_cast<int> (round(0.041*errorI  + 0.0355*cumErrorI + 0*rateErrorI));     // calcular la salida del PID 
     lastErrorI = errorI; 
   
   }
@@ -500,43 +502,42 @@ int pidI(double wI)
 
 void feedForwardD()
 {
-    if(setpointWD==0){
+    if(((int)setpointWD)==0){
       PWM_D=0;
     }
-    else if(setpointWD<MINSETPOINT){
-      setpointWD=6;
-      PWM_D=95;
+    else
+    {
+      PWM_D=round((setpointWD+4.88773248)/0.12);
+      if(PWM_D<94){
+        PWM_D=94;
+        strcpy(operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
+      }
+      else if(PWM_D>MAXPWM){
+       PWM_D=MAXPWM;
+      }
     }
-    else if(setpointWD < LIM_LINEAL){
-      PWM_D=round((setpointWD+0.0894785)/0.0793996);
-    }
-    if(PWM_D<94){
-      PWM_D=94;
-      strcpy(operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
-    }
-    else if(PWM_D>MAXPWM){
-      PWM_D=MAXPWM;
-    }
+    
+    
    
 }
 void feedForwardI()
-{    if(setpointWI==0){
+{   if(((int)setpointWI)==0)
+    {
       PWM_I=0;
-    }  
-    else if(setpointWI<MINSETPOINT){
-      setpointWI=6;
-      PWM_I=98;
     }
-    else if(setpointWI < LIM_LINEAL){
-     PWM_I=round((setpointWI-0.199148)/0.07553);
+    else{
+      PWM_I=round((setpointWI+4.64995)/0.116612);
+      if(PWM_I<94)
+      {
+        PWM_I=94;
+        strcpy(operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
+      }
+      else if(PWM_I>MAXPWM)
+      {
+        PWM_I=MAXPWM;
+      }
     }
-    if(PWM_I<94){
-      PWM_I=94;
-      strcpy(operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
-    }
-    else if(PWM_I>MAXPWM){
-      PWM_I=MAXPWM;
-    }
+    
     
 }
 

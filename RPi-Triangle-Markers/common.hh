@@ -44,7 +44,11 @@ struct appdata{
         unsigned short id; //identificador
         unsigned short op; //codigo de operacion
         unsigned short len;                       /* longitud de datos */
+<<<<<<< HEAD
         unsigned char data [MAXDATASIZE-HEADER_LEN];//datos
+=======
+        char data [MAXDATASIZE-HEADER_LEN];//datos
+>>>>>>> master
         //nota¡ actualizar char data a string o puntero para que sea mas versatil.
 
 
