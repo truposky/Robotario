@@ -26,13 +26,13 @@
  *
  */
 #include "common.hh"
+#include "misc.cc"
 #include <opencv2/opencv.hpp>
 #include <opencv2/aruco.hpp>
 #include <pthread.h> 
 #include <time.h> 
 #include <math.h> 
 #include <fstream>
-#include <iostream>
 #include <bits/stdc++.h>
 using namespace std;
 using namespace tinyxml2;
@@ -63,7 +63,7 @@ const char* keys  =
 #define SAMPLINGTIME 500000 // in usec
 #define MAXSINGNALLENGTH 512
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.03;
+const float KP=0.02;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -164,19 +164,10 @@ void *dataAruco(void *arg)
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
         cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-        memcpy(operation_send.data,&angularWheel[0],sizeof(angularWheel[0]));
-        strcat(operation_send.data,&del);
-        memcpy(operation_send.data+sizeof(angularWheel[0])+sizeof(del),&angularWheel[1],sizeof(angularWheel[1]));
+        floatToBytes(angularWheel[0], &operation_send.data[0]);
+        floatToBytes(angularWheel[1], &operation_send.data[4]);
         comRobot(id,ip,port,OP_MOVE_WHEEL);
-        float f,f2;
-        int a_size=sizeof(operation_send.data)/sizeof(char);
-        string data=convertToString(operation_send.data,a_size);
-        vector<string> velo;
-        tokenize(data, del,velo);
-        memcpy(&f,velo[0].c_str(),sizeof (float));
-        memcpy(&f2,velo[1].c_str(),sizeof (float));
-        cout<<"operation:"<<f<<","<<f2<<endl;
-        
+
         //----------------------------------------------------
         
         comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
