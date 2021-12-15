@@ -26,14 +26,14 @@
  *
  */
 #include "common.hh"
-#include "misc.cc"
 #include <opencv2/opencv.hpp>
 #include <opencv2/aruco.hpp>
 #include <pthread.h> 
 #include <time.h> 
 #include <math.h> 
 #include <fstream>
-#include <bits/stdc++.h>
+#include <iostream>
+
 using namespace std;
 using namespace tinyxml2;
 
@@ -63,14 +63,10 @@ const char* keys  =
 #define SAMPLINGTIME 500000 // in usec
 #define MAXSINGNALLENGTH 512
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.02;
+const float KP=0.003;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
-string convertToString(char* a, int size)
-{
-    string s = a;
-    return s;
-}
+
 //----prototipos-----//
 int comRobot(int id,string ip,string port,int instruction);//used for send and recive instructions and data for every robot
 void tokenize(const string s, char c,vector<string>& v);//split the string 
@@ -157,18 +153,16 @@ void *dataAruco(void *arg)
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-<<<<<<< HEAD
         td=(float)n*0.4; 
         //-----------------------move--------------------------
-        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
         cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-        floatToBytes(angularWheel[0], &operation_send.data[0]);
-        floatToBytes(angularWheel[1], &operation_send.data[4]);
+        memcpy(operation_send.data,&angularWheel[0],sizeof(float));
+        strcat(operation_send.data,&del); 
+        memcpy(operation_send.data+sizeof(float)+sizeof(del),&angularWheel[1],sizeof(float));
         comRobot(id,ip,port,OP_MOVE_WHEEL);
-
         //----------------------------------------------------
         
         comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
@@ -178,13 +172,6 @@ void *dataAruco(void *arg)
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
-=======
-        td=(float)n*0.6; 
-        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        //info.wheel_vel=operation_recv->data;
-        info.td=td;
-        if(arucoInfo.size()>0){
->>>>>>> master
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back(it->id);
@@ -213,7 +200,7 @@ void *dataAruco(void *arg)
         if (cont==2 && vel !=0)
         {
             float error=(float)(CENTER-meanPoint);
-            float minerror=5;
+            float minerror=25;
             if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
             {
                 w=(float)(CENTER-meanPoint)*KP;//angular velocity
@@ -222,30 +209,34 @@ void *dataAruco(void *arg)
             }
 	
         }
-	if (cont==2){
-        	if(auxDegree>37)
-        	{
-           	 	vel=-28.5;
-        	}
-       		else if(auxDegree<23)
-		{
-			 vel=28.5;
-        	}
-	}
-	else 
-	{
-		if(vel<0){
-			vel=28.5;
-		}
-		else
-		{
-			vel=-28.5;
-		}
+       if(contVel<2){
+            vel=28.5;
+            contVel++;
+        }
+        else if(contVel<4)
+        {
+            
+            vel=0;
+            contVel++;
+        }
+        else if(contVel<6)
+        {
+            vel=-28.45;
+            contVel++;
+        }
+        else if(contVel<8)
+        {
+            vel=0;
+            contVel++;
+        }
+        if(contVel>=8)
+        { contVel=0;
         
+        }
         
 	
     
-	}
+
         
         n++;
         meanPoint=0;

@@ -26,7 +26,7 @@
 
 
 const int PORT = 4242;
-const int MAXDATASIZE = 256; //numero de bytes que se pueden recibir
+const int MAXDATASIZE =256; //numero de bytes que se pueden recibir
 const int HEADER_LEN = sizeof(unsigned short)*3;
 const int MAXROBOTS = 4;
 const char IP_SERVER[] = "192.168.1.2";
@@ -44,7 +44,11 @@ struct appdata{
         unsigned short id; //identificador
         unsigned short op; //codigo de operacion
         unsigned short len;                       /* longitud de datos */
+<<<<<<< HEAD
+        unsigned char data [MAXDATASIZE-HEADER_LEN];//datos
+=======
         char data [MAXDATASIZE-HEADER_LEN];//datos
+>>>>>>> master
         //nota¡ actualizar char data a string o puntero para que sea mas versatil.
 
 

@@ -21,12 +21,19 @@ void Robot::angularWheelSpeed(float (&w_wheel)[NUMWHEELS],float velocity_robot[2
 	for (int i =0;i<NUMWHEELS;i++){
 		w_wheel[i]=0;
 	}
-	
+		
   	for(int i=0; i <fila;i++){
 		for(int j=0;j<columna;j++){
-			aux=+A[i][j] *velocity_robot[j];
+			aux+=(A[i][j] * velocity_robot[j]);
 		}
 		w_wheel[i]=aux;
+		if(w_wheel[i]<0 && w_wheel[i]>-6){
+			w_wheel[i]=0;
+		}
+		else if(w_wheel[i]>0 && w_wheel[i]<6)
+		{
+			w_wheel[i]=0;
+		}
 		aux=0;
 	}
 
