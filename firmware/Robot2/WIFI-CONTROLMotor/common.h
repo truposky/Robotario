@@ -1,3 +1,8 @@
+#include <math.h>
+#include "MeanFilterLib.h"
+#include <Arduino_LSM6DS3.h>
+#include <string>
+#include <vector>
 #define MAXDATASIZE 256
 #define HEADER_LEN (sizeof(unsigned short)*3)
 #define ID 0;

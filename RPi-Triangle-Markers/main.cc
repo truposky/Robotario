@@ -152,9 +152,9 @@ void *dataAruco(void *arg){//thread function
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.6; 
         //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        info.wheel_vel=operation_recv->data;
+        //info.wheel_vel=operation_recv->data;
         info.td=td;
-         if(arucoInfo.size()>0){
+        if(arucoInfo.size()>0){
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back(it->id);
