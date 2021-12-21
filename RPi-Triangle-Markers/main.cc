@@ -157,10 +157,9 @@ void *dataAruco(void *arg)
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-<<<<<<< HEAD
         td=(float)n*0.4; 
         //-----------------------move--------------------------
-        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);
+        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
@@ -171,20 +170,12 @@ void *dataAruco(void *arg)
 
         //----------------------------------------------------
         
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        info.wheel_vel=operation_recv->data;
+        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robo
         info.td=td;
 	    int cont=0;
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
-=======
-        td=(float)n*0.6; 
-        //comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        //info.wheel_vel=operation_recv->data;
-        info.td=td;
-        if(arucoInfo.size()>0){
->>>>>>> master
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back(it->id);
@@ -567,9 +558,7 @@ int comRobot(int id,string ip,string port,int instruction){
     memset (buf, '\0', MAXDATASIZE); /* Pone a cero el buffer inicialmente */
     //aqui se indica la operacion que se desea realizar
     operation_send.id=id;//se asigna el id del robot1
-    string data;
-    string delimiter=":";
-    operation_send.len = strlen (operation_send.data);
+    operation_send.len = strlen ((char*)operation_send.data);
     operation_send.op=instruction;
 
     if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
@@ -597,12 +586,9 @@ int comRobot(int id,string ip,string port,int instruction){
                     cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_VEL_ROBOT:
-                    data=operation_recv->data;
-                    char del =',';
-                    vector<string> speed;
-                    tokenize(data,del,speed);
-                    cout<<speed[0];//rueda derecha
-                    cout<<","<<speed[1]<<endl;//rueda izquierda
+                    float f1 = bytesToFloat(&operation_recv->data[0]);
+                    float f2 = bytesToFloat(&operation_recv->data[4]);
+                    std::cout << "salida: " << f1 <<", " << f2 << std::endl;
                 break;
             }
        
@@ -620,62 +606,4 @@ int comRobot(int id,string ip,string port,int instruction){
 
 
 }
-void tokenize(const string s, char c,vector<string>& v)//sirve para separa la entrada string.
-{
-   string::size_type i = 0;
-   string::size_type j = s.find(c);
 
-   while (j != string::npos) 
-   {
-      v.push_back(s.substr(i, j-i));
-      i = ++j;
-      j = s.find(c, j);
-
-      if (j == string::npos)
-         v.push_back(s.substr(i, s.length()));
-   }
-}
-
-void concatenateChar(char c, char *word){
-    char cadenaTemporal[2];
-    cadenaTemporal[0] = c;
-    cadenaTemporal[1] = '\0';
-    strcat(word, cadenaTemporal);
-
-}
-void operationSend(){
-    int value;
-    cout<<"(0) SALUDO"<<endl;
-    cout<<"(1) MOVE_WHEEL"<<endl;
-    cout<<"(2) STOP_WHEEL"<<endl;
-    cout<<"(3) MESSAGE"<<endl;
-    cout<<"(4) TELEMETRY"<<endl;
-    cout<<"(5) VEL_wheel"<<endl;
-    cin>>value;
-    switch (value)
-    {
-
-        case 0:
-            operation_send.op=OP_SALUDO;
-            strcpy(operation_send.data,"Saludo");
-            operation_send.len = strlen (operation_send.data);
-            break;
-        case 1:
-            operation_send.op=OP_MOVE_WHEEL;
-            break;
-        case 2:
-            operation_send.op=OP_STOP_WHEEL;
-            break;
-        case 3:
-            break;
-        case 4:
-            break;
-        case 5:
-            operation_send.op=OP_VEL_ROBOT;
-            strcpy(operation_send.data,"velocidad");
-            operation_send.len = strlen (operation_send.data);
-            break;
-    }
-
-    
-}

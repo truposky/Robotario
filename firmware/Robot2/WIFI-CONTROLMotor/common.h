@@ -3,7 +3,9 @@
 #include <Arduino_LSM6DS3.h>
 #include <string>
 #include <vector>
-#define MAXDATASIZE 256
+#include <stdio.h>
+#include <stdlib.h>
+#define MAXDATASIZE 255
 #define HEADER_LEN (sizeof(unsigned short)*3)
 #define ID 0;
 struct appdata{
@@ -13,10 +15,29 @@ struct appdata{
         unsigned short len;                       /* longitud de datos */
        
 
-        char data [MAXDATASIZE-HEADER_LEN];//datos
+        unsigned char data [MAXDATASIZE-HEADER_LEN];//datos
 
 
 };
+typedef union { unsigned char b[4]; float  i; } mfloat;
+
+void floatToBytes(float n, unsigned char *b)
+{
+    int i;
+    mfloat x;
+
+    x.i = n;
+    for(i=0 ; i<4 ; i++) b[i] = x.b[i];
+}
+
+float bytesToFloat(unsigned char *b)
+{
+    int i;
+    mfloat x;
+
+    for(i=0 ; i<4 ; i++) x.b[i] = b[i];
+    return(x.i);
+}
 //operacion error
 #define OP_ERROR            0xFFFF
 //operaciones requeridas por central
