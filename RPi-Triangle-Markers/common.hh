@@ -26,7 +26,7 @@
 
 
 const int PORT = 4242;
-const int MAXDATASIZE =256; //numero de bytes que se pueden recibir
+const int MAXDATASIZE =255; //numero de bytes que se pueden recibir
 const int HEADER_LEN = sizeof(unsigned short)*3;
 const int MAXROBOTS = 4;
 const char IP_SERVER[] = "192.168.1.2";

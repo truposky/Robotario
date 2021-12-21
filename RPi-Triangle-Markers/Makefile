@@ -7,5 +7,9 @@ all: $(TARGET)
 $(TARGET): $(TARGET).cc
 	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).cc  $(CLIBS)
 
+debug:
+	$(CC) -debug -Wall $(CFLAGS) -o $(TARGET) $(TARGET).cc  $(CLIBS)
+
+
 clean:
 	$(RM) $(TARGET)

@@ -117,7 +117,7 @@ void *dataAruco(void *arg)
 
     struct logo_data{
         float td;
-        string wheel_vel;
+        float wheel_vel[2];
 
         vector<int> id;
         vector<float> degree;
@@ -142,16 +142,13 @@ void *dataAruco(void *arg)
     float w0=2*M_PI*f0;
     float A=8;
     float vel=0;//linear velocity of robot
-    float td,auxVel=0;
+    float td;
     float w=0;//angular velocity of robot
-    char del=',';
-    char wc[sizeof(vel)];
 
     float velocity_robot[2];
     float angularWheel[2];
     int meanPoint=0,auxId=0;
     float auxDegree=0;
-    int contVel=0;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
 
     while(n<MAXSINGNALLENGTH){
@@ -170,7 +167,9 @@ void *dataAruco(void *arg)
 
         //----------------------------------------------------
         
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robo
+        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        info.wheel_vel[0] = bytesToFloat(&operation_recv->data[0]);
+        info.wheel_vel[1] = bytesToFloat(&operation_recv->data[4]);
         info.td=td;
 	    int cont=0;
         auxDegree=0;
@@ -284,6 +283,7 @@ void *dataAruco(void *arg)
         }
         logo<<endl;
     }
+    return NULL;
 }
 int main(int argc,char **argv)
 {
@@ -547,7 +547,6 @@ int comRobot(int id,string ip,string port,int instruction){
     break;
    
     }
-    int enable = 1;
     /*if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
     error("setsockopt(SO_REUSEADDR) failed");*/
 
@@ -569,13 +568,17 @@ int comRobot(int id,string ip,string port,int instruction){
     if(operation_send.op != OP_MOVE_WHEEL)
     { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
         if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
+        
         }
         operation_recv=( struct appdata*)&buf;
-        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) ){
 
-            cout<<"(servidor) unidad de datos incompleta\n";
+        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) )
+        {
+            
+            cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
         }
-        else{
+        else
+        {
               // relaiza operacion solicitada por el cliente 
 
             switch (operation_recv->op){
@@ -583,12 +586,11 @@ int comRobot(int id,string ip,string port,int instruction){
                     cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_MESSAGE_RECIVE:
+                    
                     cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_VEL_ROBOT:
-                    float f1 = bytesToFloat(&operation_recv->data[0]);
-                    float f2 = bytesToFloat(&operation_recv->data[4]);
-                    std::cout << "salida: " << f1 <<", " << f2 << std::endl;
+
                 break;
             }
        
