@@ -1,0 +1,5 @@
+int n=0;
+    float fs=1/0.6;
+    float f0=fs/6;
+    float w0=2*M_PI*f0;
+    float A=20;

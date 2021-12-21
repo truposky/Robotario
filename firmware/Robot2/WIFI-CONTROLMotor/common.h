@@ -1,4 +1,11 @@
-#define MAXDATASIZE 256
+#include <math.h>
+#include "MeanFilterLib.h"
+#include <Arduino_LSM6DS3.h>
+#include <string>
+#include <vector>
+#include <stdio.h>
+#include <stdlib.h>
+#define MAXDATASIZE 255
 #define HEADER_LEN (sizeof(unsigned short)*3)
 #define ID 0;
 struct appdata{
@@ -8,10 +15,29 @@ struct appdata{
         unsigned short len;                       /* longitud de datos */
        
 
-        char data [MAXDATASIZE-HEADER_LEN];//datos
+        unsigned char data [MAXDATASIZE-HEADER_LEN];//datos
 
 
 };
+typedef union { unsigned char b[4]; float  i; } mfloat;
+
+void floatToBytes(float n, unsigned char *b)
+{
+    int i;
+    mfloat x;
+
+    x.i = n;
+    for(i=0 ; i<4 ; i++) b[i] = x.b[i];
+}
+
+float bytesToFloat(unsigned char *b)
+{
+    int i;
+    mfloat x;
+
+    for(i=0 ; i<4 ; i++) x.b[i] = b[i];
+    return(x.i);
+}
 //operacion error
 #define OP_ERROR            0xFFFF
 //operaciones requeridas por central
@@ -112,10 +138,11 @@ double setpointWD=0;
 double setpointWI=0;
 double SetpointD,SetpointI,SetpointAnterior=0;//se usa para indicar el valor de referncia es temporal se debera usar uno para cada rueda
 bool backD=false,backI=false;
-#define MINPWM 90
+#define MINPWM 94
 #define MAXPWM 255
 #define LIM_LINEAL 13.5
+#define MINSETPOINT 5.5 //this is the minimal speed for every wheel, with that the code avoid the dead zone
 //----------------------sampling time variables----------------------------------------------------------------------------
-#define SAMPLINGTIME 3.5//ms
+#define SAMPLINGTIME 8620//us
 unsigned long currentTime=0, timeAfter=0;
 double elapsedTime=0;
