@@ -138,9 +138,9 @@ void *dataAruco(void *arg)
 
     int n=0;
     float fs=1/0.5;
-    float f0=fs/3.5;
+    float f0=1;
     float w0=2*M_PI*f0;
-    float A=8;
+    float A=5;
     float vel=0;//linear velocity of robot
     float td;
     float w=0;//angular velocity of robot
@@ -199,7 +199,8 @@ void *dataAruco(void *arg)
         
         meanPoint=meanPoint/2;
         cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
-        w=0;
+        vel=A*w0*sin(w0*td);
+	w=0;
         if (cont==2 && vel !=0)
         {
             float error=(float)(CENTER-meanPoint);
@@ -213,30 +214,16 @@ void *dataAruco(void *arg)
 	
         }
 	if (cont==2){
-        	if(auxDegree>37)
+        	if(auxDegree>39 && vel >0)
         	{
-           	 	vel=-28.5;
+           	 	vel=-vel;
         	}
-       		else if(auxDegree<23)
+       		else if(auxDegree<20 && vel<0)
 		{
-			 vel=28.5;
+			 vel=-vel;
         	}
-	}
-	else 
-	{
-		if(vel<0){
-			vel=28.5;
-		}
-		else
-		{
-			vel=-28.5;
-		}
-        
-        
 	
-    
 	}
-        
         n++;
         meanPoint=0;
         savelog.push_back(info);
