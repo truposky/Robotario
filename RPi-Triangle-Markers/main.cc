@@ -61,7 +61,7 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 500000 // in usec
-#define MAXSINGNALLENGTH 512
+#define MAXSINGNALLENGTH 20
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.02;
 // get sockaddr, IPv4 or IPv6:
@@ -118,7 +118,6 @@ void *dataAruco(void *arg)
     struct logo_data{
         float td;
         float wheel_vel[2];
-
         vector<int> id;
         vector<float> degree;
     };
@@ -138,9 +137,9 @@ void *dataAruco(void *arg)
 
     int n=0;
     float fs=1/0.5;
-    float f0=1;
+    float f0=fs/4;
     float w0=2*M_PI*f0;
-    float A=5;
+    float A=9;
     float vel=0;//linear velocity of robot
     float td;
     float w=0;//angular velocity of robot
@@ -154,13 +153,13 @@ void *dataAruco(void *arg)
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.4; 
+        td=(float)n*0.5; 
         //-----------------------move--------------------------
-        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
+        //memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
-        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+        //cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
         floatToBytes(angularWheel[0], &operation_send.data[0]);
         floatToBytes(angularWheel[1], &operation_send.data[4]);
         comRobot(id,ip,port,OP_MOVE_WHEEL);
@@ -198,9 +197,9 @@ void *dataAruco(void *arg)
         }
         
         meanPoint=meanPoint/2;
-        cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
+        //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
-	w=0;
+	    w=0;
         if (cont==2 && vel !=0)
         {
             float error=(float)(CENTER-meanPoint);
@@ -208,26 +207,26 @@ void *dataAruco(void *arg)
             if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
             {
                 w=(float)(CENTER-meanPoint)*KP;//angular velocity
-                //if(vel<0)w=-w;
-               // cout<<"error:"<<error<<endl;
+                
             }
 	
         }
-	if (cont==2){
-        	if(auxDegree>39 && vel >0)
-        	{
-           	 	vel=-vel;
-        	}
-       		else if(auxDegree<20 && vel<0)
-		{
-			 vel=-vel;
-        	}
-	
-	}
+        if (cont==2){
+                if(auxDegree>39 && vel >0)
+                {
+                    vel=-vel;
+                }
+                else if(auxDegree<20 && vel<0)
+            {
+                vel=-vel;
+                }
+        
+        }
         n++;
         meanPoint=0;
         savelog.push_back(info);
-        
+        info.id.erase(info.id.begin(),info.id.end());
+        info.degree.erase(info.degree.begin(),info.degree.end());
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
@@ -261,12 +260,15 @@ void *dataAruco(void *arg)
     //comRobot(id,ip,port,OP_MOVE_WHEEL);
     */
     //save data on logo.txt
+    cout<<"data save"<<endl;
     logo.open("logo.txt");
     for(iter=savelog.begin();iter !=savelog.end();iter++)
     {
-        logo<<iter->td<<","<<iter->wheel_vel;
+        string wheelVel1=to_string(iter->wheel_vel[0]);
+        string wheelVel2=to_string(iter->wheel_vel[0]);
+        logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-            logo<<iter->id.at(i)<<","<<iter->degree.at(i);
+            logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i);
         }
         logo<<endl;
     }
