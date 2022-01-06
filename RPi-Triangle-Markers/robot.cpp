@@ -13,11 +13,11 @@ void Robot::SetupConection(int &id,string &IP,string &P){
     P=port;
 
 }
-void Robot::angularWheelSpeed(float (&w_wheel)[NUMWHEELS],float velocity_robot[2])
+void Robot::angularWheelSpeed(double (&w_wheel)[NUMWHEELS],double velocity_robot[2])
 {
 	int fila=2;
 	int columna =2;
-	float aux=0;
+	double aux=0;
 	for (int i =0;i<NUMWHEELS;i++){
 		w_wheel[i]=0;
 	}
