@@ -116,7 +116,7 @@ void *dataAruco(void *arg)
 {//thread function
 
     struct logo_data{
-        float td;
+        double td;
         double wheel_vel[2];
         vector<int> id;
         vector<float> degree;
@@ -136,16 +136,16 @@ void *dataAruco(void *arg)
     tval_sample.tv_usec=0;
 
     int n=0;
-    float fs=1/0.5;
-    float f0=fs/4;
-    float w0=2*M_PI*f0;
-    float A=9;
-    float vel=0;//linear velocity of robot
-    float td;
-    float w=0;//angular velocity of robot
+    double fs=1/0.5;
+    double f0=fs/50;
+    double w0=2*M_PI*f0;
+    double A=5;
+    double vel=0;//linear velocity of robot
+    double td;
+    double w=0;//angular velocity of robot
 
-    float velocity_robot[2];
-    float angularWheel[2];
+    double velocity_robot[2];
+    double angularWheel[2];
     int meanPoint=0,auxId=0;
     float auxDegree=0;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
@@ -160,8 +160,8 @@ void *dataAruco(void *arg)
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
         cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-        floatToBytes(angularWheel[0], &operation_send.data[0]);
-        floatToBytes(angularWheel[1], &operation_send.data[4]);
+        doubleToBytes(angularWheel[0], &operation_send.data[0]);
+        coubleToBytes(angularWheel[1], &operation_send.data[8]);
         comRobot(id,ip,port,OP_MOVE_WHEEL);
 
         //----------------------------------------------------
@@ -199,6 +199,7 @@ void *dataAruco(void *arg)
         meanPoint=meanPoint/2;
         cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
+        if(vel)
 	    w=0;
         if (cont==2 && vel !=0)
         {
