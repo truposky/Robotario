@@ -203,7 +203,7 @@ void *dataAruco(void *arg)
         if (cont==2 && vel !=0)
         {
             float error=(float)(CENTER-meanPoint);
-            float minerror=5;
+            float minerror=10;
             if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
             {
                 w=(float)(CENTER-meanPoint)*KP;//angular velocity
