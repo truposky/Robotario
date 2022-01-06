@@ -61,9 +61,9 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 500000 // in usec
-#define MAXSINGNALLENGTH 20
+#define MAXSINGNALLENGTH 240
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.02;
+const float KP=0.05;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -117,7 +117,7 @@ void *dataAruco(void *arg)
 
     struct logo_data{
         float td;
-        float wheel_vel[2];
+        double wheel_vel[2];
         vector<int> id;
         vector<float> degree;
     };
@@ -155,11 +155,11 @@ void *dataAruco(void *arg)
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.5; 
         //-----------------------move--------------------------
-        //memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
+        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
-        //cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
         floatToBytes(angularWheel[0], &operation_send.data[0]);
         floatToBytes(angularWheel[1], &operation_send.data[4]);
         comRobot(id,ip,port,OP_MOVE_WHEEL);
@@ -167,10 +167,10 @@ void *dataAruco(void *arg)
         //----------------------------------------------------
         
         comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        info.wheel_vel[0] = bytesToFloat(&operation_recv->data[0]);
-        info.wheel_vel[1] = bytesToFloat(&operation_recv->data[4]);
+        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[4]);
         info.td=td;
-	    int cont=0;
+	int cont=0;
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
@@ -197,7 +197,7 @@ void *dataAruco(void *arg)
         }
         
         meanPoint=meanPoint/2;
-        //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
+        cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
 	    w=0;
         if (cont==2 && vel !=0)
@@ -572,18 +572,18 @@ int comRobot(int id,string ip,string port,int instruction){
 
             switch (operation_recv->op){
                 case OP_SALUDO:
-                    cout<<" contenido "<<operation_recv->data<<endl;
+                    //cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_MESSAGE_RECIVE:
                     
-                    cout<<" contenido "<<operation_recv->data<<endl;
+                    //cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_VEL_ROBOT:
 
                 break;
             }
        
-        //memset (buf, '\0', MAXDATASIZE);
+        memset (buf, '\0', MAXDATASIZE);
         }
     }
    
