@@ -61,9 +61,9 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 500000 // in usec
-#define MAXSINGNALLENGTH 200
+#define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.017;
+const float KP=0.0185;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -192,10 +192,11 @@ void *dataAruco(void *arg)
         //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
 	if(vel>0){
-	       	vel=8.7*3.35;
+        vel=7.8*3.35;
 	}
 	else if(vel<0) {
-		vel=-8.7*3.35;
+		vel=-7.8*3.35;
+        w=-w;
 	}
 	else{
 	       	vel=0;
@@ -205,7 +206,7 @@ void *dataAruco(void *arg)
         if (cont==2 && vel !=0 )
         {
             float error=(float)(CENTER-meanPoint);
-            float minerror=30;
+            float minerror=15;
             if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
             {
                 w=(double)(CENTER-meanPoint)*KP;//angular velocity
@@ -214,11 +215,11 @@ void *dataAruco(void *arg)
 	
         }
         if (cont==2){
-                if(auxDegree>31 && vel >0)
+                if(auxDegree>28 && vel >0)
                 {
                     vel=-vel;
                 }
-                else if(auxDegree<27 && vel<0)
+                else if(auxDegree<24 && vel<0)
             {
                 vel=-vel;
                 }
@@ -560,7 +561,7 @@ int comRobot(int id,string ip,string port,int instruction){
     memset (buf, '\0', MAXDATASIZE); /* Pone a cero el buffer inicialmente */
     //aqui se indica la operacion que se desea realizar
     operation_send.id=id;//se asigna el id del robot1
-    operation_send.len = strlen ((char*)operation_send.data);
+    operation_send.len = sizeof (operation_send.data);
     operation_send.op=instruction;
 
     if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
