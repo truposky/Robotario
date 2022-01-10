@@ -1,7 +1,7 @@
 <Robotarium>
     <robot>
         <ID> 00 </ID>
-        <IP>192.168.1.5</IP>
+        <IP>192.168.78.5</IP>
         <PORT>4243</PORT>
 
     </robot>
