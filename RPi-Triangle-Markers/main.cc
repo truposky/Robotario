@@ -61,9 +61,9 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 500000 // in usec
-#define MAXSINGNALLENGTH 512
+#define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.02;
+const float KP=0.0185;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -116,9 +116,8 @@ void *dataAruco(void *arg)
 {//thread function
 
     struct logo_data{
-        float td;
-        float wheel_vel[2];
-
+        double td;
+        double wheel_vel[2];
         vector<int> id;
         vector<float> degree;
     };
@@ -137,16 +136,18 @@ void *dataAruco(void *arg)
     tval_sample.tv_usec=0;
 
     int n=0;
-    float fs=1/0.5;
-    float f0=fs/3.5;
-    float w0=2*M_PI*f0;
-    float A=8;
-    float vel=0;//linear velocity of robot
-    float td;
-    float w=0;//angular velocity of robot
+    double fs=1/0.5;
 
-    float velocity_robot[2];
-    float angularWheel[2];
+    double f0=fs/6;
+
+    double w0=2*M_PI*f0;
+    double A=5;
+    double vel=0;//linear velocity of robot
+    double td;
+    double w=0;//angular velocity of robot
+
+    double velocity_robot[2];
+    double angularWheel[2];
     int meanPoint=0,auxId=0;
     float auxDegree=0;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
@@ -154,24 +155,20 @@ void *dataAruco(void *arg)
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.4; 
-        //-----------------------move--------------------------
-        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
-        velocity_robot[0]=w;
-        velocity_robot[1]=vel;
-        robot1.angularWheelSpeed(angularWheel,velocity_robot);
-        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-        floatToBytes(angularWheel[0], &operation_send.data[0]);
-        floatToBytes(angularWheel[1], &operation_send.data[4]);
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
-
-        //----------------------------------------------------
+        td=(float)n*0.5; 
         
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-        info.wheel_vel[0] = bytesToFloat(&operation_recv->data[0]);
-        info.wheel_vel[1] = bytesToFloat(&operation_recv->data[4]);
-        info.td=td;
-	    int cont=0;
+        if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+        {
+            info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+            info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
+        }
+        else 
+        {
+            info.wheel_vel[0] = 9999;
+            info.wheel_vel[1] = 9999;
+        }
+	info.td=td;
+	int cont=0;
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
@@ -198,50 +195,63 @@ void *dataAruco(void *arg)
         }
         
         meanPoint=meanPoint/2;
-        cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
-        w=0;
-        if (cont==2 && vel !=0)
+        //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
+        vel=A*w0*sin(w0*td);
+
+	if(vel>0){
+        vel=7.8*3.35;
+	}
+	else if(vel<0) {
+		vel=-7.8*3.35;
+        w=-w;
+	}
+	else{
+	       	vel=0;
+	}
+
+	w=0;
+        if (cont==2 && vel !=0 )
+
+      
         {
             float error=(float)(CENTER-meanPoint);
-            float minerror=5;
+            float minerror=15;
             if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
             {
-                w=(float)(CENTER-meanPoint)*KP;//angular velocity
-                //if(vel<0)w=-w;
-               // cout<<"error:"<<error<<endl;
+                w=(double)(CENTER-meanPoint)*KP;//angular velocity
+                
             }
 	
         }
-	if (cont==2){
-        	if(auxDegree>37)
-        	{
-           	 	vel=-28.5;
-        	}
-       		else if(auxDegree<23)
-		{
-			 vel=28.5;
-        	}
-	}
-	else 
-	{
-		if(vel<0){
-			vel=28.5;
-		}
-		else
-		{
-			vel=-28.5;
-		}
+        if (cont==2){
+                if(auxDegree>28 && vel >0)
+                {
+                    vel=-vel;
+                }
+                else if(auxDegree<24 && vel<0)
+            {
+                vel=-vel;
+                }
         
-        
-	
-    
-	}
-        
+        }
         n++;
         meanPoint=0;
         savelog.push_back(info);
+        info.id.erase(info.id.begin(),info.id.end());
+        info.degree.erase(info.degree.begin(),info.degree.end());
+	
+        //-----------------------move--------------------------
+       // memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
+        velocity_robot[0]=w;
+        velocity_robot[1]=vel;
+        robot1.angularWheelSpeed(angularWheel,velocity_robot);
+        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+        doubleToBytes(angularWheel[0], &operation_send.data[0]);
+        doubleToBytes(angularWheel[1], &operation_send.data[8]);
+        //----------------------------------------------------
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
         
-        gettimeofday(&tval_after,NULL);
+	gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
         if( tval_sample.tv_usec<0)
@@ -274,12 +284,15 @@ void *dataAruco(void *arg)
     //comRobot(id,ip,port,OP_MOVE_WHEEL);
     */
     //save data on logo.txt
+    cout<<"data save"<<endl;
     logo.open("logo.txt");
     for(iter=savelog.begin();iter !=savelog.end();iter++)
     {
-        logo<<iter->td<<","<<iter->wheel_vel;
+        string wheelVel1=to_string(iter->wheel_vel[0]);
+        string wheelVel2=to_string(iter->wheel_vel[1]);
+        logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-            logo<<iter->id.at(i)<<","<<iter->degree.at(i);
+            logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i);
         }
         logo<<endl;
     }
@@ -527,7 +540,7 @@ int comRobot(int id,string ip,string port,int instruction){
     
     if ((rv = getaddrinfo(ipRobot, portRobot, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-    return 1;
+        return -1;
     }
            // set timeout
     struct timeval timeout;
@@ -543,6 +556,7 @@ int comRobot(int id,string ip,string port,int instruction){
         }
         if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
             cout<<"fail"<<endl;//perror("setsockopt failed:");
+            return -1;
         }
     break;
    
@@ -552,23 +566,23 @@ int comRobot(int id,string ip,string port,int instruction){
 
     if (p == NULL) {
         fprintf(stderr, "talker: failed to create socket\n");
-        return 2;
+        return -1;
     }
     memset (buf, '\0', MAXDATASIZE); /* Pone a cero el buffer inicialmente */
     //aqui se indica la operacion que se desea realizar
     operation_send.id=id;//se asigna el id del robot1
-    operation_send.len = strlen ((char*)operation_send.data);
+    operation_send.len = sizeof (operation_send.data);
     operation_send.op=instruction;
 
     if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
     {
         perror("talker: sendto");
-        exit(1);
+        exit(-1);
     }
     if(operation_send.op != OP_MOVE_WHEEL)
     { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
         if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
-        
+            return -1;
         }
         operation_recv=( struct appdata*)&buf;
 
@@ -576,6 +590,7 @@ int comRobot(int id,string ip,string port,int instruction){
         {
             
             cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
+            return -1;
         }
         else
         {
@@ -583,18 +598,18 @@ int comRobot(int id,string ip,string port,int instruction){
 
             switch (operation_recv->op){
                 case OP_SALUDO:
-                    cout<<" contenido "<<operation_recv->data<<endl;
+                    //cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_MESSAGE_RECIVE:
                     
-                    cout<<" contenido "<<operation_recv->data<<endl;
+                    //cout<<" contenido "<<operation_recv->data<<endl;
                 break;
                 case OP_VEL_ROBOT:
 
                 break;
             }
        
-        //memset (buf, '\0', MAXDATASIZE);
+      //  memset (buf, '\0', MAXDATASIZE);
         }
     }
    
