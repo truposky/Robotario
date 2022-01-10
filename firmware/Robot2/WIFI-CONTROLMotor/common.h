@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
+#include <iostream>
 #include <stdlib.h>
+#include <unistd.h>
 #define MAXDATASIZE 255
 #define HEADER_LEN (sizeof(unsigned short)*3)
 #define ID 0;
@@ -13,14 +15,12 @@ struct appdata{
        unsigned short id; //identificador
         unsigned short op; //codigo de operacion
         unsigned short len;                       /* longitud de datos */
-       
-
         unsigned char data [MAXDATASIZE-HEADER_LEN];//datos
 
 
 };
+typedef union { unsigned char b[8]; double i; } mdouble;
 typedef union { unsigned char b[4]; float  i; } mfloat;
-
 void floatToBytes(float n, unsigned char *b)
 {
     int i;
@@ -36,6 +36,22 @@ float bytesToFloat(unsigned char *b)
     mfloat x;
 
     for(i=0 ; i<4 ; i++) x.b[i] = b[i];
+    return(x.i);
+}
+void doubleToBytes(double n, unsigned char *b)
+{
+    int i;
+    mdouble x;
+
+    x.i = n;
+    for(i=0 ; i<8 ; i++) b[i] = x.b[i];
+}
+double bytesToDouble(unsigned char *b)
+{
+    int i;
+    mdouble x;
+
+    for(i=0 ; i<8 ; i++) x.b[i] = b[i];
     return(x.i);
 }
 //operacion error

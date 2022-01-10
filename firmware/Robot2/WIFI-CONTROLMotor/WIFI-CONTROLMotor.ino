@@ -14,7 +14,7 @@ int status = WL_IDLE_STATUS;
 //UDP variables setup
 /*-----------ip setup-----------------*/
 IPAddress ip_arduino1(192,168,1,5);
-IPAddress ip_server(192,168,1,2);
+IPAddress ip_server(192,168,1,17);
 WiFiUDP Udp;
 unsigned int localPort = 4243;      // local port to listen on
 char packetBuffer[256]; //buffer to hold incoming packet
@@ -172,16 +172,16 @@ void loop() {
                }
              }
           }
-         
-         moveWheel(PWM_I,setpointWI,pinMotorI,backI);
          moveWheel(PWM_D,setpointWD,pinMotorD,backD);
-     Serial.print(PWM_D);
+         moveWheel(PWM_I,setpointWI,pinMotorI,backI);
+         
+     /*Serial.print(PWM_D);
      Serial.print(",");
      Serial.print(PWM_I);
      Serial.print(",");
      Serial.print(wD);
      Serial.print(",");
-     Serial.println(wI);
+     Serial.println(wI);*/
      }
        // start the UDP on port 4243
       // if there's data available, read a packet
@@ -279,17 +279,17 @@ void op_moveWheel()
 {
    
    // send a reply, to the IP address and port that sent us the packet we received
-  operation_send.op=OP_MESSAGE_RECIVE;
+  /*operation_send.op=OP_MESSAGE_RECIVE;
   operation_send.id=ID;
   operation_send.len = strlen ((char*)operation_send.data);  //len 
   Udp.beginPacket(ip_server,Udp.remotePort());
   Udp.write((byte*)&operation_send,operation_send.len+HEADER_LEN);
-  Udp.endPacket();
+  Udp.endPacket();*/
   //setpointWD=stod(vel[0]);
   //setpointWI=stod(vel[1]);
   
-  setpointWD=(double)bytesToFloat(&server_operation->data[0]);
-  setpointWI=(double)bytesToFloat(&server_operation->data[4]);
+  setpointWD=bytesToDouble(&server_operation->data[0]);
+  setpointWI=bytesToDouble(&server_operation->data[8]);
   Serial.print(setpointWD);
   Serial.print(",");
   Serial.println(setpointWI);
@@ -329,16 +329,18 @@ void op_StopWheel(){
 }
 
 void op_vel_robot(){
+  
   operation_send.op=OP_VEL_ROBOT;
   operation_send.id=ID;
-
-  
-  floatToBytes(wD, &operation_send.data[0]);
-  floatToBytes(wI, &operation_send.data[4]);
+  doubleToBytes(wD, &operation_send.data[0]);
+  doubleToBytes(wI, &operation_send.data[8]);
   operation_send.len = sizeof (operation_send.data);  /* len */
   Udp.beginPacket(ip_server,Udp.remotePort());
   Udp.write((byte*)&operation_send,operation_send.len+HEADER_LEN);
   Udp.endPacket();
+  /*Serial.print(wD);
+  Serial.print(",");
+  Serial.println(wI);*/
  }
 
 
@@ -502,7 +504,7 @@ void feedForwardD()
       PWM_D=round((setpointWD+4.88773248)/0.12);
       if(PWM_D<94){
         PWM_D=94;
-        strcpy((char*)operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
+        //strcpy((char*)operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
       }
       else if(PWM_D>MAXPWM){
        PWM_D=MAXPWM;
@@ -522,7 +524,7 @@ void feedForwardI()
       if(PWM_I<94)
       {
         PWM_I=94;
-        strcpy((char*)operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
+        //strcpy((char*)operation_send.data,"mensaje recibido, alerta pwm en discontinuidad");
       }
       else if(PWM_I>MAXPWM)
       {
