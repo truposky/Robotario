@@ -157,12 +157,16 @@ void *dataAruco(void *arg)
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.5; 
         
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-
-        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
-        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
-	
-	
+        if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+        {
+            info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+            info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
+        }
+        else 
+        {
+            info.wheel_vel[0] = 9999;
+            info.wheel_vel[1] = 9999;
+        }
 	info.td=td;
 	int cont=0;
         auxDegree=0;
@@ -536,7 +540,7 @@ int comRobot(int id,string ip,string port,int instruction){
     
     if ((rv = getaddrinfo(ipRobot, portRobot, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-    return 1;
+        return -1;
     }
            // set timeout
     struct timeval timeout;
@@ -552,6 +556,7 @@ int comRobot(int id,string ip,string port,int instruction){
         }
         if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
             cout<<"fail"<<endl;//perror("setsockopt failed:");
+            return -1;
         }
     break;
    
@@ -561,7 +566,7 @@ int comRobot(int id,string ip,string port,int instruction){
 
     if (p == NULL) {
         fprintf(stderr, "talker: failed to create socket\n");
-        return 2;
+        return -1;
     }
     memset (buf, '\0', MAXDATASIZE); /* Pone a cero el buffer inicialmente */
     //aqui se indica la operacion que se desea realizar
@@ -572,12 +577,12 @@ int comRobot(int id,string ip,string port,int instruction){
     if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
     {
         perror("talker: sendto");
-        exit(1);
+        exit(-1);
     }
     if(operation_send.op != OP_MOVE_WHEEL)
     { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
         if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
-        
+            return -1;
         }
         operation_recv=( struct appdata*)&buf;
 
@@ -585,6 +590,7 @@ int comRobot(int id,string ip,string port,int instruction){
         {
             
             cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
+            return -1;
         }
         else
         {
