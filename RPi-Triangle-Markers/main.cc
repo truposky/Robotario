@@ -137,7 +137,9 @@ void *dataAruco(void *arg)
 
     int n=0;
     double fs=1/0.5;
+
     double f0=fs/6;
+
     double w0=2*M_PI*f0;
     double A=5;
     double vel=0;//linear velocity of robot
@@ -191,6 +193,7 @@ void *dataAruco(void *arg)
         meanPoint=meanPoint/2;
         //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
+
 	if(vel>0){
         vel=7.8*3.35;
 	}
@@ -204,6 +207,8 @@ void *dataAruco(void *arg)
 
 	w=0;
         if (cont==2 && vel !=0 )
+
+      
         {
             float error=(float)(CENTER-meanPoint);
             float minerror=15;
