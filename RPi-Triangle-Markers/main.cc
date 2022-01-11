@@ -617,4 +617,58 @@ int comRobot(int id,string ip,string port,int instruction){
 
 
 }
+int broadCast(){
 
+    //se crea el socket y se establece la comunicación
+    int bcast_sock;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    int numbytes;
+
+    
+
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET; // set to AF_INET to force IPv4
+    hints.ai_socktype = SOCK_DGRAM;
+   //hints.ai_flags = IPPROTO_UDP; 
+
+
+    
+    if ((rv = getaddrinfo("192.168.78.255", "6868", &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return -1;
+    }
+int broadcastEnable=1;
+
+    for(p = servinfo; p != NULL; p = p->ai_next) 
+    {
+        if ((bcast_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) 
+        {
+            perror("talker: socket");
+            continue;
+        }
+        if (setsockopt(bcast_sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable))){
+            cout<<"fail"<<endl;//perror("setsockopt failed:");
+        }
+    break;
+   
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "talker: failed to create socket\n");
+        return 2;
+    }
+    memset (buf, '\0', MAXDATASIZE); /* Pone a cero el buffer inicialmente */
+    //aqui se indica la operacion que se desea realizar
+    operation_send.id=99;//se asigna el id del robot1
+    operation_send.len = sizeof(operation_send.data);
+    operation_send.op=OP_BROADCAST;
+
+    if ((numbytes = sendto(bcast_sock,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
+    {
+        perror("talker: sendto");
+        exit(1);
+    }
+    return 0;
+}
