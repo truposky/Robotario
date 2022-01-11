@@ -30,14 +30,7 @@ const int MAXDATASIZE =255; //numero de bytes que se pueden recibir
 const int HEADER_LEN = sizeof(unsigned short)*3;
 const int MAXROBOTS = 4;
 const char IP_SERVER[] = "192.168.1.2";
-/*//direcciones IP del servidor y de los distintos robots
 
-const char arduino1[] ="192.168.2.5";
-const char arduino2[] ="192.168.2.6";
-const char arduino3[] ="192.168.2.7";
-const char arduino4[] ="192.168.2.8";
-const char arduino5[] ="192.168.2.9";
-*/
 
 struct appdata{
 
@@ -59,7 +52,8 @@ struct appdata{
 #define OP_IMU              0x0006
 //operaciones cliente
 #define OP_MESSAGE_RECIVE   0x0004
-//saludo esta en ambas
+//broadcast
+#define OP_BROADCAST        0x9999
 
 struct appdata *operation_recv;//message received of operation 
 struct appdata operation_send;//struct for message send

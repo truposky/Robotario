@@ -59,11 +59,12 @@ const char* keys  =
 
 
 #define MYPORT "4242"   // the port users will be connecting to
+#define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 500000 // in usec
 #define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.0185;
+const float KP=0.0195;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -77,6 +78,7 @@ void tokenize(const string s, char c,vector<string>& v);//split the string
 void concatenateChar(char c, char *word);//not used for now
 void operationSend();//allow the user choose an instruction for send to the robot
 void SetupRobots();//copy the information in the xml file to save in the class robot.
+int broadcastRasp();
 void error(const char *msg)
 {
     perror(msg);
@@ -114,7 +116,7 @@ float PixeltoDegree(int cx){
 
 void *dataAruco(void *arg)
 {//thread function
-
+    int *a;
     struct logo_data{
         double td;
         double wheel_vel[2];
@@ -151,7 +153,8 @@ void *dataAruco(void *arg)
     int meanPoint=0,auxId=0;
     float auxDegree=0;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
-
+    while((n=broadcastRasp() )!= 1);
+    n=0;
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
@@ -224,11 +227,11 @@ void *dataAruco(void *arg)
 	
         }
         if (cont==2){
-                if(auxDegree>28 && vel >0)
+                if(auxDegree>61 && vel >0)
                 {
                     vel=-vel;
                 }
-                else if(auxDegree<24 && vel<0)
+                else if(auxDegree<48 && vel<0)
             {
                 vel=-vel;
                 }
@@ -460,10 +463,10 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-      /*imshow("Pose estimation", image_copy);
+      imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;*/
+            break;
     }
 
     in_video.release();
@@ -619,8 +622,85 @@ int comRobot(int id,string ip,string port,int instruction){
     close(sockfd);
     
     return 0;
-    
-
-
 }
 
+
+
+int broadcastRasp(){
+    
+    
+    int out=0;
+    int sockfd;
+    struct addrinfo hints, *servinfo,*p;
+    int rv;
+    int numbytes;
+    struct sockaddr_storage their_addr;
+    socklen_t addr_len;
+    memset (&hints,0,sizeof(hints));
+    hints.ai_family=AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags=AI_PASSIVE;//use my ip
+    if((rv=getaddrinfo(NULL,PORTBROADCAST,&hints,&servinfo)) !=0){
+        return -1;
+    }
+    for(p=servinfo;p != NULL; p=p->ai_next){
+        if((sockfd=socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1){
+            perror("listener: socket");
+            continue;
+        }
+    
+        if(bind(sockfd, p->ai_addr, p->ai_addrlen) == -1){
+            close(sockfd);
+            perror("listener : bind");
+            continue;
+        }
+        
+        break;
+    }
+    
+    if(p == NULL){
+        cout<<"listener: failed to bind socket"<<endl;
+        return -1;
+    }
+    
+    cout<<"waiting broadcast"<<endl;
+    addr_len=sizeof(their_addr);
+    
+    if((numbytes = recvfrom(sockfd,buf,MAXBUFLEN,0,(struct sockaddr *)&their_addr, &addr_len)) == -1){
+        perror("recvfrom");
+        return -1;
+    }
+     operation_recv=( struct appdata*)&buf;
+     if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) )
+        {
+            
+            cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
+        }
+        else
+        {
+              // relaiza operacion solicitada por el cliente 
+
+            switch (operation_recv->op){
+                case OP_SALUDO:
+                    //cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_MESSAGE_RECIVE:
+                    
+                    //cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_VEL_ROBOT:
+
+                break;
+                case OP_BROADCAST:
+                    out=1;
+                    
+            }
+        }
+
+   
+    
+    freeaddrinfo(servinfo);
+    
+    close(sockfd);
+    return out;
+}
