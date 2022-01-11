@@ -59,7 +59,8 @@ struct appdata{
 #define OP_IMU              0x0006
 //operaciones cliente
 #define OP_MESSAGE_RECIVE   0x0004
-//saludo esta en ambas
+//broadcast
+#define OP_BROADCAST        0x9999
 
 struct appdata *operation_recv;//message received of operation 
 struct appdata operation_send;//struct for message send
