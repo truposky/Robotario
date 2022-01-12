@@ -251,7 +251,7 @@ void *dataAruco(void *arg)
         //----------------------------------------------------
         comRobot(id,ip,port,OP_MOVE_WHEEL);
         
-	gettimeofday(&tval_after,NULL);
+	    gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
         if( tval_sample.tv_usec<0)
