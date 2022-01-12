@@ -61,7 +61,7 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 500000 // in usec
+#define SAMPLINGTIME 480000 // in usec
 #define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.0195;
@@ -131,7 +131,7 @@ void *dataAruco(void *arg)
     list<logo_data> savelog;
     list<logo_data>::iterator iter;
     logo_data info;
-    robot2.SetupConection(id,ip,port);//for now only use 1 robot for communication
+    robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
     tval_sample.tv_sec=0;
