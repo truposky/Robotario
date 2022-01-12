@@ -110,7 +110,7 @@ list<record_data>::iterator it;
 pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
 float PixeltoDegree(int cx){
-    float degree=(cx+256.47368)/6.38772;
+    float degree=(cx+256.47368)/6.38772-90;//the center of camera is 0 degree
     return degree;
 }
 
@@ -131,7 +131,7 @@ void *dataAruco(void *arg)
     list<logo_data> savelog;
     list<logo_data>::iterator iter;
     logo_data info;
-    robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
+    robot2.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
     tval_sample.tv_sec=0;
@@ -160,7 +160,7 @@ void *dataAruco(void *arg)
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.5; 
         
-        if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+        /*if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
         {
             info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
             info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
@@ -169,9 +169,11 @@ void *dataAruco(void *arg)
         {
             info.wheel_vel[0] = 9999;
             info.wheel_vel[1] = 9999;
-        }
-	info.td=td;
-	int cont=0;
+        }*/
+        info.wheel_vel[0] = 9999;
+        info.wheel_vel[1] = 9999;
+        info.td=td;
+        int cont=0;
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
@@ -201,18 +203,18 @@ void *dataAruco(void *arg)
         //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
 
-	if(vel>0){
-        vel=7.8*3.35;
-	}
-	else if(vel<0) {
-		vel=-7.8*3.35;
-        w=-w;
-	}
-	else{
-	       	vel=0;
-	}
+        if(vel>0){
+            vel=7.8*3.35;
+        }
+        else if(vel<0) {
+            vel=-7.8*3.35;
+            w=-w;
+        }
+        else{
+                vel=0;
+        }
 
-	w=0;
+        w=0;
         if (cont==2 && vel !=0 )
 
       
@@ -248,11 +250,10 @@ void *dataAruco(void *arg)
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
-        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
         doubleToBytes(angularWheel[0], &operation_send.data[0]);
         doubleToBytes(angularWheel[1], &operation_send.data[8]);
         //----------------------------------------------------
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        //comRobot(id,ip,port,OP_MOVE_WHEEL);
         
 	    gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
