@@ -280,23 +280,28 @@ void *dataAruco(void *arg)
     }
     vel=0;
     w=0;
-   /* robot1.angularWheelSpeed(angularWheel,velocity_robot);
-    snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
-    snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
-    strcat(operation_send.data,&del); 
-    strcat(operation_send.data,wc); 
+   
+    velocity_robot[0]=w;
+    velocity_robot[1]=vel;
+    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+    doubleToBytes(angularWheel[1], &operation_send.data[8]);
     //comRobot(id,ip,port,OP_MOVE_WHEEL);
-    */
     //save data on logo.txt
     cout<<"data save"<<endl;
     logo.open("logo.txt");
+    logo<<"robot1"<<endl;
+    logo<<"td,wD,wI,id,degree,bx,by,id,degree,bx,by"<<endl;	
     for(iter=savelog.begin();iter !=savelog.end();iter++)
     {
         string wheelVel1=to_string(iter->wheel_vel[0]);
         string wheelVel2=to_string(iter->wheel_vel[1]);
         logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-            logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i);
+	    float bx=sin(iter->degree.at(i)*180/M_PI);
+	    float by=cos(iter->degree.at(i)*180/M_PI);
+	    if(iter->degree.at(i) < 0)bx= -bx;
+            logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i)<<","<<to_string(bx)<<","<<to_string(by);
         }
         logo<<endl;
     }
