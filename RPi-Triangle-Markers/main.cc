@@ -52,12 +52,9 @@ const char* keys  =
         "{v        |<none>| Custom video source, otherwise '0' }"
         "{h        |false | Print help }"
         "{l        |      | Actual marker length in meter }"
-        "{v        |<none>| Custom video source, otherwise '0' }"
-        ;
+        "{v        |<none>| Custom video source, otherwise '0'}"
+	;
 }
-
-
-
 #define MYPORT "4242"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
@@ -110,7 +107,7 @@ list<record_data>::iterator it;
 pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
 float PixeltoDegree(int cx){
-    float degree=(cx+256.47368)/6.38772;
+    float degree=(cx+256.47368)/6.38772-90;
     return degree;
 }
 
@@ -131,7 +128,7 @@ void *dataAruco(void *arg)
     list<logo_data> savelog;
     list<logo_data>::iterator iter;
     logo_data info;
-    robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
+    robot2.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
     tval_sample.tv_sec=0;
@@ -160,16 +157,16 @@ void *dataAruco(void *arg)
         gettimeofday(&tval_before,NULL);
         td=(float)n*0.5; 
         
-        if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+        /*if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
         {
             info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
             info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
         }
         else 
-        {
+        {*/
             info.wheel_vel[0] = 9999;
             info.wheel_vel[1] = 9999;
-        }
+       // }
 	info.td=td;
 	int cont=0;
         auxDegree=0;
@@ -181,8 +178,7 @@ void *dataAruco(void *arg)
                 info.degree.push_back(it->degree);
                 cout<<"loop:"<<it->id<<","<<it->degree<<endl;
                 meanPoint+=it->cx;
-                
-                auxId=it->id;
+
                 if(cont ==0)
                 {
                     auxDegree=it->degree;
@@ -252,7 +248,7 @@ void *dataAruco(void *arg)
         doubleToBytes(angularWheel[0], &operation_send.data[0]);
         doubleToBytes(angularWheel[1], &operation_send.data[8]);
         //----------------------------------------------------
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
+//        comRobot(id,ip,port,OP_MOVE_WHEEL);
         
 	gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
@@ -289,13 +285,19 @@ void *dataAruco(void *arg)
     //save data on logo.txt
     cout<<"data save"<<endl;
     logo.open("logo.txt");
+    logo<<"robot2"<<endl;
+    logo<<"td,wD,wI,id,degree,bx,by,id,degree,bx,by"<<endl;
     for(iter=savelog.begin();iter !=savelog.end();iter++)
     {
         string wheelVel1=to_string(iter->wheel_vel[0]);
         string wheelVel2=to_string(iter->wheel_vel[1]);
         logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-            logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i);
+            	float bx=sin(iter->degree.at(i)*180/M_PI);
+		float by=cos(iter->degree.at(i)*180/M_PI);
+		if(iter->degree.at(i)<0)bx=-bx;
+		logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i)<<","<<to_string(bx)<<","<<to_string(by);
+
         }
         logo<<endl;
     }
