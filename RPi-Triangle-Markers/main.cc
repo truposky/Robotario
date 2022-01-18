@@ -58,10 +58,10 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 500000 // in usec
+#define SAMPLINGTIME 480000 // in usec
 #define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.0195;
+const float KP=0.0045;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -135,16 +135,17 @@ void *dataAruco(void *arg)
     tval_sample.tv_usec=0;
 
     int n=0;
-    double fs=1/0.5;
+    double fs=1/0.48;
 
-    double f0=fs/6;
+    double f0=fs/4;
 
     double w0=2*M_PI*f0;
     double A=5;
     double vel=0;//linear velocity of robot
+    double auxVel;
     double td;
     double w=0;//angular velocity of robot
-
+    bool back =true;
     double velocity_robot[2];
     double angularWheel[2];
     int meanPoint=0,auxId=0;
@@ -152,23 +153,24 @@ void *dataAruco(void *arg)
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     while((n=broadcastRasp() )!= 1);
     n=0;
+    int i=0;
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.5; 
-        
-        /*if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+        td=(float)n*0.48; 
+      	 
+        if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
         {
             info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
             info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
         }
         else 
-        {*/
+        {
             info.wheel_vel[0] = 9999;
             info.wheel_vel[1] = 9999;
-       // }
-	info.td=td;
-	int cont=0;
+        }
+        info.td=td;
+        int cont=0;
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
@@ -194,45 +196,60 @@ void *dataAruco(void *arg)
         }
         
         meanPoint=meanPoint/2;
-        //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
+        cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
         vel=A*w0*sin(w0*td);
-
-	if(vel>0){
-        vel=7.8*3.35;
-	}
-	else if(vel<0) {
-		vel=-7.8*3.35;
-        w=-w;
-	}
-	else{
-	       	vel=0;
-	}
-
-	w=0;
-        if (cont==2 && vel !=0 )
-
-      
-        {
-            float error=(float)(CENTER-meanPoint);
-            float minerror=15;
-            if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
-            {
-                w=(double)(CENTER-meanPoint)*KP;//angular velocity
-                
-            }
-	
+        
+        if(vel>0){
+             vel=7.5*3.35;
         }
-        if (cont==2){
-                if(auxDegree>61 && vel >0)
+        else if(vel<0) {
+            vel=-7.5*3.35;
+            w=-w;
+        }
+        else{
+                vel=0;
+        }
+       
+         
+        w=0;
+        
+        if (cont==2)
+        {
+                if(auxDegree>55 && vel >0 )
                 {
                     vel=-vel;
+                    
                 }
-                else if(auxDegree<48 && vel<0)
-            {
-                vel=-vel;
+                else if(auxDegree<40 && vel<0 )
+                {
+                    vel=-vel;
+;
                 }
-        
+            
         }
+        if(auxVel != vel)
+        {
+            auxVel=vel;
+            vel=0;
+            
+        }
+   
+        i++;
+    
+         if (cont==2 && vel !=0  )
+
+      
+            {
+                float error=(float)(CENTER-meanPoint);
+                float minerror=10;
+                if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
+                {
+                    w=(double)(CENTER-meanPoint)*KP;//angular velocity
+                    
+                }
+	
+            }
+        
         n++;
         meanPoint=0;
         savelog.push_back(info);
@@ -240,7 +257,7 @@ void *dataAruco(void *arg)
         info.degree.erase(info.degree.begin(),info.degree.end());
 	
         //-----------------------move--------------------------
-       // memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
+        memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
         velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
@@ -248,7 +265,7 @@ void *dataAruco(void *arg)
         doubleToBytes(angularWheel[0], &operation_send.data[0]);
         doubleToBytes(angularWheel[1], &operation_send.data[8]);
         //----------------------------------------------------
-//        comRobot(id,ip,port,OP_MOVE_WHEEL);
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
         
 	gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
@@ -275,13 +292,15 @@ void *dataAruco(void *arg)
     }
     vel=0;
     w=0;
-   /* robot1.angularWheelSpeed(angularWheel,velocity_robot);
-    snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
-    snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
-    strcat(operation_send.data,&del); 
-    strcat(operation_send.data,wc); 
-    //comRobot(id,ip,port,OP_MOVE_WHEEL);
-    */
+    velocity_robot[0]=w;
+    velocity_robot[1]=vel;
+    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+    cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+    doubleToBytes(angularWheel[1], &operation_send.data[8]);
+        //----------------------------------------------------
+        comRobot(id,ip,port,OP_MOVE_WHEEL);
+   
     //save data on logo.txt
     cout<<"data save"<<endl;
     logo.open("logo.txt");
@@ -542,7 +561,7 @@ int comRobot(int id,string ip,string port,int instruction){
 
     const char *ipRobot=ip.c_str();
     const char *portRobot=port.c_str();
-    
+ 
     if ((rv = getaddrinfo(ipRobot, portRobot, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return -1;

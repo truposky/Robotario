@@ -1,25 +1,25 @@
 <Robotarium>
     <robot>
-        <ID> 00 </ID>
+        <ID> 01 </ID>
         <IP>192.168.78.5</IP>
         <PORT>4243</PORT>
 
     </robot>
     <robot>
-        <ID> 01 </ID>
-        <IP> 192.168.2.6</IP>
+        <ID> 02 </ID>
+        <IP>192.168.78.6</IP>
         <PORT>4244</PORT>
 
     </robot>
     <robot>
-        <ID> 02 </ID>
-        <IP>92.168.2.7</IP>
+        <ID> 03 </ID>
+        <IP>192.168.78.7</IP>
         <PORT>4245</PORT>
 
     </robot>
     <robot>
         <ID> 03 </ID>
-        <IP>92.168.2.8</IP>
+        <IP>92.168.78.8</IP>
         <PORT>4246</PORT>
     </robot>
 </Robotarium>
