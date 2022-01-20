@@ -878,6 +878,7 @@ void SerialCommunication(int id,int instruction){
             
             cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
             cout<<"len: "<<operation_recv->len<<endl;
+			cout<<"numbytes: "<<numbytes<<endl;
         }
         else
         {
