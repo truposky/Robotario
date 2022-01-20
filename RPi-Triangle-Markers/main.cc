@@ -34,6 +34,7 @@
 #include <math.h> 
 #include <fstream>
 #include <bits/stdc++.h>
+#include <termios.h>    // POSIX terminal control definitions
 using namespace std;
 using namespace tinyxml2;
 
@@ -76,6 +77,7 @@ void error(const char *msg)
     exit(-1);
 }
 int comRobot(int id,string ip,string port,int instruction);//used for send and recive instructions and data for every robot
+void SerialCommunication(int id,int instruction); //serialComunication for the raspberryPI
 void tokenize(const string s, char c,vector<string>& v);//split the string 
 void concatenateChar(char c, char *word);//not used for now
 void operationSend();//allow the user choose an instruction for send to the robot
@@ -168,7 +170,7 @@ void *dataAruco(void *arg)
         gettimeofday(&tval_before,NULL);
         td=(double)n*0.6; 
       	 
-        if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+       /* if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
         {
             info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
             info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
@@ -177,7 +179,11 @@ void *dataAruco(void *arg)
         {
             info.wheel_vel[0] = 9999;
             info.wheel_vel[1] = 9999;
-        }
+        }*/
+		SerialCommunication(id,OP_VEL_ROBOT);
+        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
+
         info.td=td;
         int cont=0;
         auxDegree=0;
@@ -244,10 +250,12 @@ void *dataAruco(void *arg)
         string wheelVel2=to_string(iter->wheel_vel[1]);
         logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-            	float bx=sin(iter->degree.at(i)*180/M_PI);
-		float by=cos(iter->degree.at(i)*180/M_PI);
-		if(iter->degree.at(i)<0)bx=-bx;
-		logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i)<<","<<to_string(bx)<<","<<to_string(by);
+				
+            float bx=cos(iter->degree.at(i)*180/M_PI);
+			float by=-sin(iter->degree.at(i)*180/M_PI);
+						
+			if(iter->degree.at(i)<0)bx=-bx;
+			logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i)<<","<<to_string(bx)<<","<<to_string(by);
 
         }
         logo<<endl;
@@ -806,4 +814,89 @@ int midPoint(bool &both,float &degree){
     if(center >0 && center<1) center=0;
     else if(center <0 && center >-1) center=0;
     return center;
+}
+
+
+void SerialCommunication(int id,int instruction){
+    int numbytes;
+    int arduino = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
+
+    struct termios tty;
+    struct termios tty_old;
+    memset (&tty, 0, sizeof tty);
+
+    /* Error Handling */
+    if ( tcgetattr ( arduino, &tty ) != 0 ) {
+    std::cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << std::endl;
+    }
+
+    /* Save old tty parameters */
+    tty_old = tty;
+
+    /* Set Baud Rate */
+    cfsetospeed (&tty, (speed_t)B9600);
+    cfsetispeed (&tty, (speed_t)B9600);
+
+    /* Setting other Port Stuff */
+    tty.c_cflag     &=  ~PARENB;            // Make 8n1
+    tty.c_cflag     &=  ~CSTOPB;
+    tty.c_cflag     &=  ~CSIZE;
+    tty.c_cflag     |=  CS8;
+
+    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
+    tty.c_cc[VMIN]   =  1;                  // read doesn't block
+    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
+    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
+
+    /* Make raw */
+    cfmakeraw(&tty);
+
+    /* Flush Port, then applies attributes */
+    tcflush( arduino, TCIFLUSH );
+    if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
+    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
+    }
+
+
+    unsigned char cmd[] = "b";
+    operation_send.id=id;//se asigna el id del robot1
+   /* double wD=8,wI=8;
+    doubleToBytes(wD, &operation_send.data[0]);
+    doubleToBytes(wI, &operation_send.data[8]);*/
+    operation_send.len = sizeof (operation_send.data);
+    operation_send.op=instruction;
+   
+
+    write( arduino,(char*) &operation_send, operation_send.len );
+     if(operation_send.op != OP_MOVE_WHEEL)
+    { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
+       numbytes= read(arduino,(char*)buf,MAXBUFLEN);
+       operation_recv=( struct appdata*)&buf;
+
+        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) )
+        {
+            
+            cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
+            cout<<"len: "<<operation_recv->len<<endl;
+        }
+        else
+        {
+              // relaiza operacion solicitada por el cliente 
+
+            switch (operation_recv->op){
+                case OP_SALUDO:
+                    //cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_MESSAGE_RECIVE:
+                    
+                    //cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_VEL_ROBOT:
+
+                break;
+            }
+       
+      
+        }
+    }
 }
