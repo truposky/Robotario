@@ -60,7 +60,7 @@ const char* keys  =
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 600000 // in usec
-#define MAXSINGNALLENGTH 5
+#define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.0045;
 // get sockaddr, IPv4 or IPv6:
@@ -858,7 +858,7 @@ void SerialCommunication(int id,int instruction){
     }
 
 
-    unsigned char cmd[] = "b";
+    
     operation_send.id=id;//se asigna el id del robot1
    /* double wD=8,wI=8;
     doubleToBytes(wD, &operation_send.data[0]);
@@ -878,11 +878,8 @@ void SerialCommunication(int id,int instruction){
             
             cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
             cout<<"len: "<<operation_recv->len<<endl;
-<<<<<<< HEAD
 			cout<<"numbytes: "<<numbytes<<endl;
-=======
-	    cout<<"numbytes: "<<numbytes<<endl;
->>>>>>> 36c92ff7fb6b634ca2fd15ed40e6f843950bf0de
+
         }
         else
         {
