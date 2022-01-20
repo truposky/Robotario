@@ -60,7 +60,7 @@ const char* keys  =
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 600000 // in usec
-#define MAXSINGNALLENGTH 100
+#define MAXSINGNALLENGTH 5
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.0045;
 // get sockaddr, IPv4 or IPv6:
@@ -129,7 +129,7 @@ void *dataAruco(void *arg)
     };
     int id;
     string ip,port;
-    ofstream logo("logo.txt");
+    ofstream logo("log.txt");
     logo.close();//file created
 
     list<logo_data> savelog;
@@ -162,7 +162,7 @@ void *dataAruco(void *arg)
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     pthread_create(&moveThread,NULL,robotMove,NULL);
     n=0;    
-    while((n=broadcastRasp() )!= 1);
+   // while((n=broadcastRasp() )!= 1);
 	cout<<"listo"<<endl;
 
     while(n<MAXSINGNALLENGTH){
@@ -241,7 +241,7 @@ void *dataAruco(void *arg)
     
     //save data on logo.txt
     cout<<"data save"<<endl;
-    logo.open("logo.txt");
+    logo.open("log.txt");
     logo<<"robot2"<<endl;
     logo<<"td,wD,wI,id,degree,bx,by,id,degree,bx,by"<<endl;
     for(iter=savelog.begin();iter !=savelog.end();iter++)
@@ -878,7 +878,11 @@ void SerialCommunication(int id,int instruction){
             
             cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
             cout<<"len: "<<operation_recv->len<<endl;
+<<<<<<< HEAD
 			cout<<"numbytes: "<<numbytes<<endl;
+=======
+	    cout<<"numbytes: "<<numbytes<<endl;
+>>>>>>> 36c92ff7fb6b634ca2fd15ed40e6f843950bf0de
         }
         else
         {
