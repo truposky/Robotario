@@ -61,7 +61,7 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 480000 // in usec
+#define SAMPLINGTIME 700000 // in usec
 #define MAXSINGNALLENGTH 100
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.0195;
@@ -158,9 +158,9 @@ void *dataAruco(void *arg)
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.5; 
+        td=(double)n*0.7; 
         
-        /*if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
+   /*     if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
         {
             info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
             info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
@@ -169,9 +169,12 @@ void *dataAruco(void *arg)
         {
             info.wheel_vel[0] = 9999;
             info.wheel_vel[1] = 9999;
-        }*/
-        info.wheel_vel[0] = 9999;
-        info.wheel_vel[1] = 9999;
+      }*/
+        
+            info.wheel_vel[0] = 0;
+            info.wheel_vel[1] = 0;
+     
+       
         info.td=td;
         int cont=0;
         auxDegree=0;
@@ -180,11 +183,13 @@ void *dataAruco(void *arg)
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back(it->id);
-                info.degree.push_back(it->degree);
+                
+		info.degree.push_back(it->degree);
                 cout<<"loop:"<<it->id<<","<<it->degree<<endl;
-                meanPoint+=it->cx;
+                
                 
                 auxId=it->id;
+		if(auxId !=0){
                 if(cont ==0)
                 {
                     auxDegree=it->degree;
@@ -195,67 +200,34 @@ void *dataAruco(void *arg)
                     if(auxDegree<0)auxDegree=-auxDegree;
                 }
                 cont++;
+		}
+		else {
+			continue;
+		}
                 
             }
         }
         
-        meanPoint=meanPoint/2;
-        //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
-        vel=A*w0*sin(w0*td);
-
-        if(vel>0){
-            vel=7.8*3.35;
-        }
-        else if(vel<0) {
-            vel=-7.8*3.35;
-            w=-w;
-        }
-        else{
-                vel=0;
-        }
-
-        w=0;
-        if (cont==2 && vel !=0 )
-
-      
-        {
-            float error=(float)(CENTER-meanPoint);
-            float minerror=15;
-            if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
-            {
-                w=(double)(CENTER-meanPoint)*KP;//angular velocity
-                
-            }
-	
-        }
-        if (cont==2){
-                if(auxDegree>61 && vel >0)
-                {
-                    vel=-vel;
-                }
-                else if(auxDegree<48 && vel<0)
-            {
-                vel=-vel;
-                }
         
-        }
+        
+
         n++;
         meanPoint=0;
         savelog.push_back(info);
         info.id.erase(info.id.begin(),info.id.end());
         info.degree.erase(info.degree.begin(),info.degree.end());
 	
-        //-----------------------move--------------------------
-       // memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
-        velocity_robot[0]=w;
-        velocity_robot[1]=vel;
-        robot1.angularWheelSpeed(angularWheel,velocity_robot);
-        doubleToBytes(angularWheel[0], &operation_send.data[0]);
-        doubleToBytes(angularWheel[1], &operation_send.data[8]);
-        //----------------------------------------------------
-        //comRobot(id,ip,port,OP_MOVE_WHEEL);
+       
+      
+     
+    
+   
         
-	    gettimeofday(&tval_after,NULL);
+        
+     
+        
+        
+	gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
         if( tval_sample.tv_usec<0)
@@ -270,7 +242,7 @@ void *dataAruco(void *arg)
         else
         {
            
-            usleep(SAMPLINGTIME-tval_sample.tv_usec);
+            usleep ( (unsigned int)((suseconds_t)SAMPLINGTIME-tval_sample.tv_usec));
             
         }
         
@@ -469,10 +441,10 @@ int main(int argc,char **argv)
         }
         //end mutex
 
-      imshow("Pose estimation", image_copy);
+     /* imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
 
     in_video.release();
