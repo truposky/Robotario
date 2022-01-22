@@ -151,17 +151,91 @@ void *dataAruco(void *arg)
     float auxDegree=0;
     
     
-    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
+     int numbytes;
+    int arduino = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
+
+    struct termios tty;
+    struct termios tty_old;
+    memset (&tty, 0, sizeof tty);
+
+    /* Error Handling */
+    if ( tcgetattr ( arduino, &tty ) != 0 ) {
+    std::cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << std::endl;
+    }
+
+    /* Save old tty parameters */
+    tty_old = tty;
+
+    /* Set Baud Rate */
+    cfsetospeed (&tty, (speed_t)B9600);
+    cfsetispeed (&tty, (speed_t)B9600);
+
+    /* Setting other Port Stuff */
+    tty.c_cflag     &=  ~PARENB;            // Make 8n1
+    tty.c_cflag     &=  ~CSTOPB;
+    tty.c_cflag     &=  ~CSIZE;
+    tty.c_cflag     |=  CS8;
+
+    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
+    tty.c_cc[VMIN]   =  1;                  // read doesn't block
+    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
+    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
+
+    /* Make raw */
+    cfmakeraw(&tty);
+
+
+
+
+
+
+
+
+
+
+
+
+
+double vel=0;//linear velocity of robot
+    double auxVel;
+   
+    double w=0;//angular velocity of robot
+
+   // while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     //pthread_create(&moveThread,NULL,robotMove,NULL);
     n=0;    
-    while((n=broadcastRasp() )!= 1);
+    //while((n=broadcastRasp() )!= 1);
+     tcflush( arduino, TCIFLUSH );
+    if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
+    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
+    }
+    operation_send.op=OP_VEL_ROBOT;
+     operation_send.len = sizeof (operation_send.data);
+            
+            write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+    usleep(1000);
+
 	cout<<"listo"<<endl;
 
     while(n<MAXSINGNALLENGTH){
-        
+       
         gettimeofday(&tval_before,NULL);
+         tcflush( arduino, TCIFLUSH );
+        if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
+         std::cout << "Error " << errno << " from tcsetattr" << std::endl;
+        }
         td=(double)n*0.6; 
-      	 
+        
+        
+        numbytes= read(arduino,(char*)buf,MAXBUFLEN);
+        cout<<numbytes<<endl;
+        operation_recv=( struct appdata*)&buf;
+        cout<<"hola"<<endl;
+       
+        
+        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
+        cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
        /* if(comRobot(id,ip,port,OP_VEL_ROBOT) != -1)//request for the velocity of the robot
         {
             info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
@@ -172,40 +246,27 @@ void *dataAruco(void *arg)
             info.wheel_vel[0] = 9999;
             info.wheel_vel[1] = 9999;
         }*/
-		SerialCommunication(id,OP_VEL_ROBOT);
-        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
-        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
-
-        info.td=td;
-        int cont=0;
-        auxDegree=0;
-        if(arucoInfo.size()>0)
-        {
-            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
-            {
-                info.id.push_back(it->id);
-                info.degree.push_back(it->degree);
-        //        cout<<"loop:"<<it->id<<","<<it->degree<<endl;
-                if(cont ==0)
-                {
-                    auxDegree=it->degree;
-                }
-                else if(cont ==1)
-                {
-                    auxDegree=auxDegree-it->degree;
-                    if(auxDegree<0)auxDegree=-auxDegree;
-                }
-                cont++;
-                
-            }
+		
+        w=0;
+        vel=(10+1)*3.35;
+        if(n%3==0){
+            vel=0;
         }
-        
-        
-        n++;
-        savelog.push_back(info);
-        info.id.erase(info.id.begin(),info.id.end());
-        info.degree.erase(info.degree.begin(),info.degree.end());
-	
+             //-----------------------move--------------------------
+           // memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
+            velocity_robot[0]=w;
+            velocity_robot[1]=vel;
+            robot1.angularWheelSpeed(angularWheel,velocity_robot);
+        //  cout<<"v: "<<vel<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+            doubleToBytes(angularWheel[0], &operation_send.data[0]);
+            doubleToBytes(angularWheel[1], &operation_send.data[8]);
+            operation_send.op=OP_MOVE_WHEEL;
+            operation_send.len = sizeof (operation_send.data);
+            
+            write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+            //----------------------------------------------------
+            cout<<"enviar VEL"<<endl;
+            n++;
        
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
@@ -230,7 +291,10 @@ void *dataAruco(void *arg)
        
         
     }
-    
+    operation_send.op=OP_STOP_SERIAL;
+            operation_send.len = sizeof (operation_send.data);
+            
+            write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
     //save data on logo.txt
     cout<<"data save"<<endl;
     logo.open("log.txt");

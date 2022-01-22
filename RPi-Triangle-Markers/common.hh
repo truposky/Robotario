@@ -54,6 +54,7 @@ struct appdata{
 #define OP_MESSAGE_RECIVE   0x0004
 //broadcast
 #define OP_BROADCAST        0x9999
+#define OP_STOP_SERIAL      0X0006
 
 struct appdata *operation_recv;//message received of operation 
 struct appdata operation_send;//struct for message send
