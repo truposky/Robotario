@@ -26,6 +26,7 @@
  *
  */
 #include "common.hh"
+#include "udp.cpp"
 #include "misc.cc"
 #include <opencv2/opencv.hpp>
 #include <opencv2/aruco.hpp>
@@ -76,26 +77,14 @@ void error(const char *msg)
     perror(msg);
     exit(-1);
 }
-int comRobot(int id,string ip,string port,int instruction);//used for send and recive instructions and data for every robot
-void SerialCommunication(int id,int instruction); //serialComunication for the raspberryPI
+//int comRobot(int id,string ip,string port,int instruction);//used for send and recive instructions and data for every robot
+//void SerialCommunication(int id,int instruction); //serialComunication for the raspberryPI
 void tokenize(const string s, char c,vector<string>& v);//split the string 
-void concatenateChar(char c, char *word);//not used for now
 void operationSend();//allow the user choose an instruction for send to the robot
 void SetupRobots();//copy the information in the xml file to save in the class robot.
 int broadcastRasp();
-
-
-
-
-
-   
-
-
-
-
-
 void *robotMove(void *arg);
-int midPoint(bool &both,float &degree);
+
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -104,9 +93,12 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 void SetupRobots();
+
 enum {r1, r2, r3, r4,r5};
      //definition of robots
 Robot robot1,robot2,robot3,robot4;//se define la clase para los distintos robots.
+UDP comRobot1,comRobot2,comRobot3,comServer;//comunication udp
+
 struct record_data//struct for share information between threads
 {
     int id; //id of every robot
@@ -121,10 +113,6 @@ list<record_data>::iterator it2;
 
 pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
-float PixeltoDegree(int cx){
-    float degree=(float)(cx+256.47368)/6.38772-90;
-    return degree;
-}
 
 void *dataAruco(void *arg)
 {//thread function
@@ -141,7 +129,7 @@ void *dataAruco(void *arg)
     };
     
     int id;
-    string ip,port;
+    string ipServer="192.168.1.2",portServer="4050";
     ofstream logo("log.txt");
     logo.close();//file created
 
@@ -149,7 +137,7 @@ void *dataAruco(void *arg)
     list<logo_data>::iterator iter;
     logo_data info;
     
-    robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
+   // robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
     tval_sample.tv_sec=0;
@@ -162,7 +150,8 @@ void *dataAruco(void *arg)
     double angularWheel[2];
     double cx;
     double z;
-    
+    //comunication server 
+        comServer.initTalkerSocket(ipServer,portServer);
     //-----------------------------SE CREA COMUNICACION USB------------------
     int numbytes;
     int arduino = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
@@ -191,62 +180,14 @@ void *dataAruco(void *arg)
     /* Make raw */
     cfmakeraw(&tty);
 
-      //---------------------se crea el socket y se establece la comunicación-------------------//
-    int sockfd;
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
-    int numbytesUdp;
-    struct sockaddr_storage robot_addr;
-    socklen_t addr_len = sizeof robot_addr;
-
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // set to AF_INET to force IPv4
-    hints.ai_socktype = SOCK_DGRAM;
-   //hints.ai_flags = IPPROTO_UDP; 
-
-    const char *ipRobot="192.168.78.2";
-    const char *portRobot="3999";
- 
-    if ((rv = getaddrinfo(ipRobot, portRobot, &hints, &servinfo)) != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        
-    }
-           // set timeout
-    struct timeval timeout;
-    timeout.tv_sec = 0;//sec
-    timeout.tv_usec = 500000;//microsecond
-    
-    // loop through all the results and make a socket
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
-            p->ai_protocol)) == -1) {
-            perror("talker: socket");
-            continue;
-        }
-        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
-            cout<<"fail"<<endl;//perror("setsockopt failed:");
-	
-        }
-    break;
-   
-    }
-    /*if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-    error("setsockopt(SO_REUSEADDR) failed");*/
-
-    if (p == NULL) {
-        fprintf(stderr, "talker: failed to create socket\n");
-        
-    }
-    
-    //-----------------FIN CREACION SOCKET-------------------------------------//
-
+     
     double vel=0;//linear velocity of robot
     double auxVel=0,auxW=0;
     int idRobot;   
     double w=0;//angular velocity of robot
     bool correction =true,forward;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
+    char resultString[64];
     n=0;    
     //while((n=broadcastRasp() )!= 1);
     
@@ -289,10 +230,10 @@ void *dataAruco(void *arg)
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back((*it).id);
-		info.x.push_back((*it).x);
-		info.y.push_back((*it).y);
-		info.z.push_back((*it).z);
- 		idRobot=(*it).id;              
+                info.x.push_back((*it).x);
+                info.y.push_back((*it).y);
+                info.z.push_back((*it).z);
+                idRobot=(*it).id;              
                 cx += (*it).x;
                 z=(*it).z;
                 count++;
@@ -301,12 +242,12 @@ void *dataAruco(void *arg)
         }
 	info.td=td;
 	info.timeStamp=to_string(tval_before.tv_usec);
-	if ((numbytesUdp = sendto(sockfd, &info.timeStamp, sizeof(info.timeStamp), 0,p->ai_addr, p->ai_addrlen)) == -1)
-	{
-	    perror("talker: sendto");
-	}
+    
+
+    snprintf(resultString, sizeof(resultString), "Robot2:Current time : %d \n", tval_before.tv_usec);
+	comServer.SendTalkerSocket(resultString,sizeof(resultString));
 	savelog.push_back(info);//save info in list
-	cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
+	//cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
 	
 	
         if(count==2){
@@ -363,8 +304,8 @@ void *dataAruco(void *arg)
             	operation_send.len = sizeof (operation_send.data);
             
             	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-	    	usleep(220000);
-		count=0;
+	    	    usleep(220000);
+		        count=0;
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
            
