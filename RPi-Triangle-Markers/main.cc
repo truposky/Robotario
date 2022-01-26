@@ -413,23 +413,28 @@ void *dataAruco(void *arg)
     cout<<"data save"<<endl;
     logo.open("log.txt");
     logo<<"robot1"<<endl;
-    logo<<"td,wD,wI,id,degree,bx,by,id,degree,bx,by"<<endl;
+    logo<<"td,wD,wI,id,x,y,z,id,x,y,z"<<endl;
     for(iter=savelog.begin();iter !=savelog.end();iter++)
     {
         string wheelVel1=to_string(iter->wheel_vel[0]);
         string wheelVel2=to_string(iter->wheel_vel[1]);
+        string X,Y,Z;
+        
         logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-		
+            X=to_string(iter->x);
+            Y=to_string(iter->x);
+            Z=to_string(iter->x);
+            logo<<","<<iter->id.at(i)<<","<<iter->x.at(i)<<","<<iter->y.at(i)<<","<<iter->z.at(i);
 
         }
         logo<<endl;
-	
-    	operation_send.op=OP_STOP_SERIAL;
-    	operation_send.len = sizeof (operation_send.data);
-    	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-        close(arduino);
     }
+    
+    operation_send.op=OP_STOP_SERIAL;
+    operation_send.len = sizeof (operation_send.data);
+    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+    close(arduino);
     return NULL;
 }
 int main(int argc,char **argv)
