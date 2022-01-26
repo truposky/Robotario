@@ -129,7 +129,7 @@ void *dataAruco(void *arg)
     };
     
     int id;
-    string ipServer="192.168.1.2",portServer="4050";
+    string ipServer="192.168.78.2",portServer="4050";
     ofstream logo("log.txt");
     logo.close();//file created
 
@@ -187,7 +187,7 @@ void *dataAruco(void *arg)
     double w=0;//angular velocity of robot
     bool correction =true,forward;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
-    char resultString[64];
+    char resultString[120];
     n=0;    
     //while((n=broadcastRasp() )!= 1);
     
@@ -244,7 +244,7 @@ void *dataAruco(void *arg)
 	info.timeStamp=to_string(tval_before.tv_usec);
     
 
-    snprintf(resultString, sizeof(resultString), "Robot2:Current time : %d \n", tval_before.tv_usec);
+    snprintf(resultString, sizeof(resultString), "Robot2:Current time : %d s :%d us\n",tval_before.tv_sec, tval_before.tv_usec);
 	comServer.SendTalkerSocket(resultString,sizeof(resultString));
 	savelog.push_back(info);//save info in list
 	//cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
@@ -645,108 +645,6 @@ void SetupRobots()
     }
 }
 //crear clase udp
-int socketComRobot(int id,string ip,string port,int instruction, int &sockfd,
-		    struct sockaddr_storage &robot_addr,struct addrinfo  *p){
-    
-    //se crea el socket y se establece la comunicación
-    
-    struct addrinfo hints, *servinfo;
-    int rv;
-    int numbytes;
-    
-    socklen_t addr_len = sizeof robot_addr;
-
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // set to AF_INET to force IPv4
-    hints.ai_socktype = SOCK_DGRAM;
-   //hints.ai_flags = IPPROTO_UDP; 
-
-    const char *ipRobot=ip.c_str();
-    const char *portRobot=port.c_str();
- 
-    if ((rv = getaddrinfo(ipRobot, portRobot, &hints, &servinfo)) != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return -1;
-    }
-           // set timeout
-    struct timeval timeout;
-    timeout.tv_sec = 1;//sec
-    timeout.tv_usec = 0;//microsecond
-    
-    // loop through all the results and make a socket
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
-            p->ai_protocol)) == -1) {
-            perror("talker: socket");
-            continue;
-        }
-        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
-            cout<<"fail"<<endl;//perror("setsockopt failed:");
-            return -1;
-        }
-    break;
-   
-    }
-    /*if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-    error("setsockopt(SO_REUSEADDR) failed");*/
-
-    if (p == NULL) {
-        fprintf(stderr, "talker: failed to create socket\n");
-        return -1;
-    }
-    /*memset (buf, '\0', MAXDATASIZE); // Pone a cero el buffer inicialmente 
-    //aqui se indica la operacion que se desea realizar
-    operation_send.id=id;//se asigna el id del robot1
-    operation_send.len = sizeof (operation_send.data);
-    operation_send.op=instruction;
-
-    if ((numbytes = sendto(sockfd,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
-    {
-        perror("talker: sendto");
-        exit(-1);
-    }
-    if(operation_send.op != OP_MOVE_WHEEL)
-    { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
-        if((numbytes=recvfrom(sockfd,buf,MAXBUFLEN-1,0,(struct sockaddr*)&robot_addr, &addr_len))==-1){
-            return -1;
-        }
-        operation_recv=( struct appdata*)&buf;
-
-        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) )
-        {
-            
-            cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
-            return -1;
-        }
-        else
-        {
-              // relaiza operacion solicitada por el cliente 
-
-            switch (operation_recv->op){
-                case OP_SALUDO:
-                    //cout<<" contenido "<<operation_recv->data<<endl;
-                break;
-                case OP_MESSAGE_RECIVE:
-                    
-                    //cout<<" contenido "<<operation_recv->data<<endl;
-                break;
-                case OP_VEL_ROBOT:
-
-                break;
-            }
-       
-      //  memset (buf, '\0', MAXDATASIZE);
-        }
-    }
-   
-    
-    freeaddrinfo(servinfo);
-    
-    close(sockfd);
-    */
-    return 0;
-}
 
 
 int broadcastRasp(){
@@ -831,89 +729,3 @@ int broadcastRasp(){
 
 
 
-
-void SerialCommunication(int id,int instruction){
-    int numbytes;
-    int arduino = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
-
-    struct termios tty;
-    struct termios tty_old;
-    memset (&tty, 0, sizeof tty);
-
-    /* Error Handling */
-    if ( tcgetattr ( arduino, &tty ) != 0 ) {
-    std::cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << std::endl;
-    }
-
-    /* Save old tty parameters */
-    tty_old = tty;
-
-    /* Set Baud Rate */
-    cfsetospeed (&tty, (speed_t)B9600);
-    cfsetispeed (&tty, (speed_t)B9600);
-
-    /* Setting other Port Stuff */
-    tty.c_cflag     &=  ~PARENB;            // Make 8n1
-    tty.c_cflag     &=  ~CSTOPB;
-    tty.c_cflag     &=  ~CSIZE;
-    tty.c_cflag     |=  CS8;
-
-    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
-    tty.c_cc[VMIN]   =  1;                  // read doesn't block
-    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
-    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
-
-    /* Make raw */
-    cfmakeraw(&tty);
-
-    /* Flush Port, then applies attributes */
-    tcflush( arduino, TCIFLUSH );
-    if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
-    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
-    }
-
-
-    unsigned char cmd[] = "b";
-    operation_send.id=id;//se asigna el id del robot1
-   /* double wD=8,wI=8;
-    doubleToBytes(wD, &operation_send.data[0]);
-    doubleToBytes(wI, &operation_send.data[8]);*/
-    operation_send.len = sizeof (operation_send.data);
-    operation_send.op=instruction;
-   
-
-    write( arduino,(char*) &operation_send, operation_send.len );
-     if(operation_send.op != OP_MOVE_WHEEL)
-    { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
-       numbytes= read(arduino,(char*)buf,MAXBUFLEN);
-       operation_recv=( struct appdata*)&buf;
-
-        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) )
-        {
-            
-            cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
-            cout<<"len: "<<operation_recv->len<<endl;
-			cout<<"numbytes: "<<numbytes<<endl;
-
-        }
-        else
-        {
-              // relaiza operacion solicitada por el cliente 
-
-            switch (operation_recv->op){
-                case OP_SALUDO:
-                    //cout<<" contenido "<<operation_recv->data<<endl;
-                break;
-                case OP_MESSAGE_RECIVE:
-                    
-                    //cout<<" contenido "<<operation_recv->data<<endl;
-                break;
-                case OP_VEL_ROBOT:
-
-                break;
-            }
-       
-      
-        }
-    }
-}
