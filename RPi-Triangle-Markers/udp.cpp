@@ -90,7 +90,7 @@ void UDP::SendTalkerSocket(char *buf,size_t len){
     int numbytes;
     
     sendto(socktalker,buf,len, 0,talker->ai_addr, talker->ai_addrlen);
-    std::cout<<buf<<std::endl;
+   
 }
 UDP::~UDP(){
 

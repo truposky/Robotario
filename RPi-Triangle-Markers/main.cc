@@ -61,9 +61,9 @@ const char* keys  =
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 660000 // in usec
-#define MAXSINGNALLENGTH 100
+#define MAXSINGNALLENGTH 200
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.0095;
+const float KP=0.00535;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -122,9 +122,9 @@ void *dataAruco(void *arg)
         double wheel_vel[2];
         vector<int> id;
         vector<double> x;
-	vector<double> y;
-	vector<double> z;
-	string timeStamp;
+        vector<double> y;
+        vector<double> z;
+        string timeStamp;
 	
     };
     
@@ -189,8 +189,9 @@ void *dataAruco(void *arg)
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     char resultString[120];
     n=0;    
-    //while((n=broadcastRasp() )!= 1);
-    
+    vel=8*3.35;
+    while((n=broadcastRasp() )!= 1);
+    cout<<"listo"<<endl;
     tcflush( arduino, TCIFLUSH );
     if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
     std::cout << "Error " << errno << " from tcsetattr" << std::endl;
@@ -202,8 +203,8 @@ void *dataAruco(void *arg)
     
     usleep(500);
 
-    cout<<"listo"<<endl;
-    vel=8*3.35;
+    
+    
     while(n<MAXSINGNALLENGTH){
        
         gettimeofday(&tval_before,NULL);
@@ -221,12 +222,12 @@ void *dataAruco(void *arg)
         operation_recv=( struct appdata*)&buf;
         info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
         info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
-        //cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
-	
+        cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
+        cx=0;
+        count=0;
         if(arucoInfo.size()>0)
         {
-            cx=0;
-            count=0;
+            
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
                 info.id.push_back((*it).id);
@@ -250,115 +251,126 @@ void *dataAruco(void *arg)
 	//cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
 	
 	
-        if(count==2){
-	    if(cx>7 || cx < -7){
-	            w=-KP*cx;
-	    }
-	    else{
-		    w=0;
-	    }
-        
-            if(z <= 0.65){
-		vel= -8.1*3.35;
-		forward=false;
-	    }
-            else if( z>0.9 ){
-		vel=8.1*3.35;
-		forward=true;
-            }
-	    if(correction && forward){
-		 
-		vel=8.1*3.35;
-		correction=false;
-            }
-	    else if( correction && !forward){
-		vel=-8.1*3.35;
-		correction=false;
-        }
-	    
-	    if(vel != auxVel || w != auxW || correction){
-		auxVel=vel;
-		auxW=w;;
-		velocity_robot[0]=w;
-           	 velocity_robot[1]=vel;
-           	 robot1.angularWheelSpeed(angularWheel,velocity_robot);
-
-           	 doubleToBytes(angularWheel[0], &operation_send.data[0]);
-           	 doubleToBytes(angularWheel[1], &operation_send.data[8]);
-           	 operation_send.op=OP_MOVE_WHEEL;
-           	 operation_send.len = sizeof (operation_send.data);
+    if(count==2){
             
-            	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
- 	    }
+            if(cx>5 || cx < -5){
+
+                w=-KP*cx;
+            }
+            else{
+                w=0;
+            }
+            
+            if(z <= 0.6){
+                
+                vel= -7.9*3.35;
+                
+                forward=false;
+            }
+            else if( z>0.85 ){
+                vel=7.9*3.35;
+                forward=true;
+            }
+            
+            if (correction){
+                if( forward){
+                 
+                    vel=7.9*3.35;
+                    correction=false;
+                }
+                else if( !forward){
+                    vel=-7.9*3.35;
+                    correction=false;
+                }
+            }
+                if(vel != auxVel || w != auxW || correction){
+                     auxVel=vel;
+                     auxW=w;
+                     velocity_robot[0]=w;
+                     velocity_robot[1]=vel;
+                     robot1.angularWheelSpeed(angularWheel,velocity_robot);
+
+                     doubleToBytes(angularWheel[0], &operation_send.data[0]);
+                     doubleToBytes(angularWheel[1], &operation_send.data[8]);
+                     operation_send.op=OP_MOVE_WHEEL;
+                     operation_send.len = sizeof (operation_send.data);
+                    cout<<"normal ;"<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+                }
 	}
 	else {
-
+                correction =true;
                 vel=0;
                 w=0;	
                 velocity_robot[0]=w;
             	velocity_robot[1]=vel;
+                auxVel=vel;
+                auxW=w;
             	robot1.angularWheelSpeed(angularWheel,velocity_robot);
             	doubleToBytes(angularWheel[0], &operation_send.data[0]);
             	doubleToBytes(angularWheel[1], &operation_send.data[8]);
             	operation_send.op=OP_MOVE_WHEEL;
             	operation_send.len = sizeof (operation_send.data);
-            
+                cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
             	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-	    	    usleep(220000);
+	    	    usleep(330000);
 		        count=0;
-            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
-            {
-           
- 		idRobot=it->id;              
-           
-            
-                count++;
-	    }  
-	    correction =true;
-	    if(count !=2){
-	   	    correction=true;
-	  	  vel=0;
-	    	if(idRobot ==1){
+                for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
+                {
+                   
+                    idRobot=it->id;              
+                   
+                    
+                        count++;
+                }  
+                
+                if(count !=2){
+                    
+                    vel=0;
+                    if(idRobot ==1){
 
-		    w=16*robot2.R/robot2.L;
-	     	}
-	    	else{
-		    
-		    w=-16*robot2.R/robot2.L;
-	     	}
-	    
+                        w=16*robot2.R/robot2.L;
+                    }
+                    else{
+                        
+                        w=-16*robot2.R/robot2.L;
+                    }
             
-	   
-	  
-	    	velocity_robot[0]=w;
-            	velocity_robot[1]=vel;
-            
+                
+           
+          
+                    velocity_robot[0]=w;
+                    velocity_robot[1]=vel;
+                    
 
-		robot1.angularWheelSpeed(angularWheel,velocity_robot);
-            	doubleToBytes(angularWheel[0], &operation_send.data[0]);
-            	doubleToBytes(angularWheel[1], &operation_send.data[8]);
-            	operation_send.op=OP_MOVE_WHEEL;
-            	operation_send.len = sizeof (operation_send.data);
-            
-                //cout<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-            	
-            	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-	    	usleep(150000);
-		w=0;
-		vel=0;
-	    	velocity_robot[0]=w;
-            	velocity_robot[1]=vel;
-            	robot1.angularWheelSpeed(angularWheel,velocity_robot);
-            	doubleToBytes(angularWheel[0], &operation_send.data[0]);
-            	doubleToBytes(angularWheel[1], &operation_send.data[8]);
-            	operation_send.op=OP_MOVE_WHEEL;
-            	operation_send.len = sizeof (operation_send.data);
-            
-            	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-	    	usleep(220000);
-	    }
+                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+                    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+                    doubleToBytes(angularWheel[1], &operation_send.data[8]);
+                    operation_send.op=OP_MOVE_WHEEL;
+                    operation_send.len = sizeof (operation_send.data);
+                    
+                    cout<<"giro correccion "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                    
+                    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+                    usleep(160000);
+                    
+                    w=0;
+                    vel=0;
+                     auxVel=vel;
+                     auxW=w;
+                    velocity_robot[0]=w;
+                    velocity_robot[1]=vel;
+                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+                    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+                    doubleToBytes(angularWheel[1], &operation_send.data[8]);
+                    operation_send.op=OP_MOVE_WHEEL;
+                    operation_send.len = sizeof (operation_send.data);
+                    cout<<"parada2 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<"forward "<<forward<<endl;
+                    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+                    usleep(120000);
+                }
 	   	 
-	}
+        }
 	
     
         
@@ -371,7 +383,7 @@ void *dataAruco(void *arg)
 	    info.x.erase(info.x.begin(),info.x.end());
 	    info.y.erase(info.y.begin(),info.y.end());
 	    info.z.erase(info.z.begin(),info.z.end());
-            n++;
+        n++;
        
         gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
@@ -387,7 +399,7 @@ void *dataAruco(void *arg)
         }
         else
         {
-	    cout<<tval_sample.tv_usec<<endl;
+	    
             usleep((unsigned int)((suseconds_t)SAMPLINGTIME-tval_sample.tv_usec));
             
         }
@@ -422,10 +434,10 @@ void *dataAruco(void *arg)
         
         logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
         for(int i=0; i<iter->id.size();i++){
-            X=to_string(iter->x);
-            Y=to_string(iter->x);
-            Z=to_string(iter->x);
-            logo<<","<<iter->id.at(i)<<","<<iter->x.at(i)<<","<<iter->y.at(i)<<","<<iter->z.at(i);
+            X=to_string(iter->x.at(i));
+            Y=to_string(iter->y.at(i));
+            Z=to_string(iter->z.at(i));
+            logo<<","<<iter->id.at(i)<<","<<X<<","<<Y<<","<<Z;
 
         }
         logo<<endl;
@@ -524,7 +536,7 @@ int main(int argc,char **argv)
         grayMat.copyTo(image_copy);
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f> > corners;
-        cv::aruco::detectMarkers(image, dictionary, corners, ids);
+        cv::aruco::detectMarkers(grayMat, dictionary, corners, ids);
         
             
         while(!arucoInfo.empty()){//avoid fill list more than markers there are
@@ -591,10 +603,10 @@ int main(int argc,char **argv)
             
         }
           
-      imshow("Pose estimation", image_copy);
+     /* imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
 
     in_video.release();
