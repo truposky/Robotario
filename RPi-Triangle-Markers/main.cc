@@ -144,7 +144,10 @@ void *dataAruco(void *arg)
 
    
     double td;
-   
+    int cont=0;
+    int idAux;
+
+
     //comunication server 
         comServer.initTalkerSocket(ipServer,portServer);
 
@@ -224,22 +227,36 @@ void *dataAruco(void *arg)
             
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
+                cont++;
                 info.id.push_back((*it).id);
                 info.x.push_back((*it).x);
                 info.y.push_back((*it).y);
                 info.z.push_back((*it).z);
-                           
+                idAux=it->id;          
                 
             }
         }
-	info.td=td;
-	info.timeStamp=to_string(tval_before.tv_usec);
+        if(cont==1){
+            if(idAux==2){
+                idAux=3;
+            }
+            else{
+                idAux=2;
+            }
+            
+            info.id.push_back(idAux);
+            info.x.push_back(-9999);
+            info.y.push_back(-9999);
+            info.z.push_back(-9999);
+        }
+	    info.td=td;
+	    info.timeStamp=to_string(tval_before.tv_usec);
     
 
-    snprintf(resultString, sizeof(resultString), "Robot2:Current time : %d s :%d us\n",tval_before.tv_sec, tval_before.tv_usec);
-	comServer.SendTalkerSocket(resultString,sizeof(resultString));
-	savelog.push_back(info);//save info in list
-	//cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
+        snprintf(resultString, sizeof(resultString), "Robot2:Current time : %d s :%d us\n",tval_before.tv_sec, tval_before.tv_usec);
+	    comServer.SendTalkerSocket(resultString,sizeof(resultString));
+	    savelog.push_back(info);//save info in list
+	    //cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
 	
 	    //----------------------------------------------------
             //cout<<"enviar VEL"<<endl;
