@@ -221,22 +221,34 @@ void *dataAruco(void *arg)
         info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
         info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
         cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
-      
+        cont=0;
         if(arucoInfo.size()>0)
         {
             
             for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
             {
-                cont++;
+                
                 info.id.push_back((*it).id);
                 info.x.push_back((*it).x);
                 info.y.push_back((*it).y);
                 info.z.push_back((*it).z);
-                idAux=it->id;          
+                idAux=it->id;     
+                cont++;     
                 
             }
         }
-        if(cont==1){
+        if(cont == 0){
+            info.id.push_back(1);
+            info.x.push_back(-9999);
+            info.y.push_back(-9999);
+            info.z.push_back(-9999);
+            info.id.push_back(3);
+            info.x.push_back(-9999);
+            info.y.push_back(-9999);
+            info.z.push_back(-9999);
+        }
+        else if(cont==1){
+
             if(idAux==2){
                 idAux=3;
             }
