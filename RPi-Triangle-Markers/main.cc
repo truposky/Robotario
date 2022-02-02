@@ -61,7 +61,7 @@ const char* keys  =
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 100000 // in usec
-#define MAXSINGNALLENGTH 200
+#define MAXSINGNALLENGTH 2000
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.00535;
 // get sockaddr, IPv4 or IPv6:
@@ -187,7 +187,7 @@ int main(int argc,char **argv)
     cv::FileStorage fs("calibration_params.yml", cv::FileStorage::READ);
     fs["camera_matrix"] >> camera_matrix;
     fs["distortion_coefficients"] >> dist_coeffs;
-
+    cv::Mat rotated_image;
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
 
@@ -195,11 +195,13 @@ int main(int argc,char **argv)
     arucoInfo.clear();
     //aruco::DetectorParameters detectorParams;
     pthread_create(&_detectAruco,NULL,dataAruco,NULL);//create thread for store the values of the markers
-
+    
     while (in_video.grab())
     {
         in_video.retrieve(image);
-	    cvtColor(image,grayMat,cv::COLOR_BGR2GRAY);
+        cv::Mat for_Rotation = cv::getRotationMatrix2D(cv::Point2f((image.cols-1) / 2, (image.rows-1) / 2), (180), 1);//affine transformation matrix for the 2D rotation//
+	    cv::warpAffine(image,rotated_image,for_Rotation,image.size());
+        cvtColor(rotated_image,grayMat,cv::COLOR_BGR2GRAY);
         grayMat.copyTo(image_copy);
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f> > corners;
@@ -270,10 +272,10 @@ int main(int argc,char **argv)
             
         }
           
-     /* imshow("Pose estimation", image_copy);
+      imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;*/
+            break;
     }
 
     in_video.release();
@@ -654,6 +656,12 @@ void *dataAruco(void *arg)
 
 void *robotMove(void *arg){
     _Move = pthread_self();
+
+
+    struct timeval tval_before, tval_after, tval_sample;
+    tval_sample.tv_sec=0;
+    tval_sample.tv_usec=0;
+
     double vel=0;//linear velocity of robot
     double auxVel=0,auxW=0;
     int idRobot;   
@@ -664,9 +672,12 @@ void *robotMove(void *arg){
     double angularWheel[2];
     double cx;
     double z;
-    int arduino=*(int*)arg;
+    int arduino=(int)arg;
     vel=8*3.35;
+    const int SAMPLE_TIME=660000;//us
     while(1){
+        
+        gettimeofday(&tval_before,NULL);
         
         cx=0;
         count=0;
@@ -683,12 +694,12 @@ void *robotMove(void *arg){
                 }
                 cx=cx/2*100;// times 100 becouse is in meters and we need in cm
             }
-
+	cout<<"count: "<<count<<endl;
         if(count==2){
             
                 if(cx>5 || cx < -5){
 
-                    w=-KP*cx;
+                    w=KP*cx;
                 }
                 else{
                     w=0;
@@ -716,7 +727,7 @@ void *robotMove(void *arg){
                         correction=false;
                     }
                 }
-                if(vel != auxVel || w != auxW || correction){
+                if((vel != auxVel || w != auxW) || correction){
                         auxVel=vel;
                         auxW=w;
                         //compute angular Wheel
@@ -725,10 +736,11 @@ void *robotMove(void *arg){
                         robot1.angularWheelSpeed(angularWheel,velocity_robot);
                         doubleToBytes(angularWheel[0], &operation_send.data[0]);
                         doubleToBytes(angularWheel[1], &operation_send.data[8]);
-                        //send angular Wheel
+                
+		 	//send angular Wheel
                         operation_send.op=OP_MOVE_WHEEL;
                         operation_send.len = sizeof (operation_send.data);
-                    //cout<<"normal ;"<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                    cout<<"normal ;"<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
                         write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
 
                 }
@@ -736,7 +748,9 @@ void *robotMove(void *arg){
 	    else {
                 correction =true;
                 vel=0;
-                w=0;	
+                w=0;
+		auxVel=vel;
+		auxW=w;	
                 velocity_robot[0]=w;
             	velocity_robot[1]=vel;
             	robot1.angularWheelSpeed(angularWheel,velocity_robot);
@@ -745,12 +759,14 @@ void *robotMove(void *arg){
 
             	operation_send.op=OP_MOVE_WHEEL;
             	operation_send.len = sizeof (operation_send.data);
-                //cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
             	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
 
 	    	    usleep(330000);
 		        count=0;
-
+		
+        
+        
                 for(it2=arucoInfo.begin();it2 !=arucoInfo.end();it2++)
                 {
                    
@@ -758,7 +774,8 @@ void *robotMove(void *arg){
                    
                     
                         count++;
-                }  
+                } 
+		
                 
                 if(count !=2){
                     
@@ -786,7 +803,7 @@ void *robotMove(void *arg){
                     operation_send.op=OP_MOVE_WHEEL;
                     operation_send.len = sizeof (operation_send.data);
                     
-                   // cout<<"giro correccion "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                    cout<<"giro correccion "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
                     
                     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
                     usleep(160000);
@@ -800,13 +817,32 @@ void *robotMove(void *arg){
                     doubleToBytes(angularWheel[1], &operation_send.data[8]);
                     operation_send.op=OP_MOVE_WHEEL;
                     operation_send.len = sizeof (operation_send.data);
-                   // cout<<"parada2 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<"forward "<<forward<<endl;
+                    cout<<"parada2 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<"forward "<<forward<<endl;
                     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
                     usleep(120000);
                 }
 	   	 
             }
             
+            gettimeofday(&tval_after,NULL);
+            timersub(&tval_after,&tval_before,&tval_sample);
+        
+            if( tval_sample.tv_usec<0)
+       	    {
+           	 error("error time");
+       	    }
+       	    else if (tval_sample.tv_usec>SAMPLE_TIME)
+            {
+           	 //error("time of program greater than sample time");
+           	 cout<<"(movimiento)tiempo de programa mayor "<<tval_sample.tv_usec<<endl;
+       	    }
+            else
+           {
+	    
+          	  usleep((unsigned int)((suseconds_t)SAMPLE_TIME-tval_sample.tv_usec));
+            
+       	    }
+        
     
 
 
