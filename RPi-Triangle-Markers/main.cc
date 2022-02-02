@@ -60,7 +60,7 @@ const char* keys  =
 #define MYPORT "4240"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 660000 // in usec
+#define SAMPLINGTIME 100000 // in usec
 #define MAXSINGNALLENGTH 200
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.00535;
