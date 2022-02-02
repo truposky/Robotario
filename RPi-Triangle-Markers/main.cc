@@ -60,8 +60,8 @@ const char* keys  =
 #define MYPORT "4240"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 660000 // in usec
-#define MAXSINGNALLENGTH 200
+#define SAMPLINGTIME 100000 // in usec
+#define MAXSINGNALLENGTH 2000
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.00535;
 // get sockaddr, IPv4 or IPv6:
@@ -77,14 +77,13 @@ void error(const char *msg)
     perror(msg);
     exit(-1);
 }
-//int comRobot(int id,string ip,string port,int instruction);//used for send and recive instructions and data for every robot
-//void SerialCommunication(int id,int instruction); //serialComunication for the raspberryPI
+
 void tokenize(const string s, char c,vector<string>& v);//split the string 
 void operationSend();//allow the user choose an instruction for send to the robot
 void SetupRobots();//copy the information in the xml file to save in the class robot.
 int broadcastRasp();
 void *robotMove(void *arg);
-
+void *dataAruco(void *arg);
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -112,346 +111,13 @@ list<record_data>::iterator it;
 list<record_data>::iterator it2;
 
 pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
+pthread_t _Move, _detectAruco; ;
 
 
-void *dataAruco(void *arg)
-{//thread function
-   
-    struct logo_data{
-        double td;
-        double wheel_vel[2];
-        vector<int> id;
-        vector<double> x;
-        vector<double> y;
-        vector<double> z;
-        string timeStamp;
-	
-    };
-    
-    int id;
-    string ipServer="192.168.78.2",portServer="4050";
-    ofstream logo("log.txt");
-    logo.close();//file created
 
-    list<logo_data> savelog;
-    list<logo_data>::iterator iter;
-    logo_data info;
-    
-   // robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
-    //in this case the experiment needs the velocity 
-    struct timeval tval_before, tval_after, tval_sample;
-    tval_sample.tv_sec=0;
-    tval_sample.tv_usec=0;
-
-    int n=0;
-    int count=0;
-    double td;
-    double velocity_robot[2];
-    double angularWheel[2];
-    double cx;
-    double z;
-    //comunication server 
-        comServer.initTalkerSocket(ipServer,portServer);
-    //-----------------------------SE CREA COMUNICACION USB------------------
-    int numbytes;
-    int arduino = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
-    struct termios tty;
-    struct termios tty_old;
-    memset (&tty, 0, sizeof tty);
-    /* Error Handling */
-    if ( tcgetattr ( arduino, &tty ) != 0 ) {
-    std::cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << std::endl;
-    }
-    /* Save old tty parameters */
-    tty_old = tty;
-    /* Set Baud Rate */
-    cfsetospeed (&tty, (speed_t)B9600);
-    cfsetispeed (&tty, (speed_t)B9600);
-    /* Setting other Port Stuff */
-    tty.c_cflag     &=  ~PARENB;            // Make 8n1
-    tty.c_cflag     &=  ~CSTOPB;
-    tty.c_cflag     &=  ~CSIZE;
-    tty.c_cflag     |=  CS8;
-
-    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
-    tty.c_cc[VMIN]   =  1;                  // read doesn't block
-    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
-    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
-    /* Make raw */
-    cfmakeraw(&tty);
-
-     
-    double vel=0;//linear velocity of robot
-    double auxVel=0,auxW=0;
-    int idRobot;   
-    double w=0;//angular velocity of robot
-    bool correction =true,forward;
-    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
-    char resultString[120];
-    n=0;    
-    vel=8*3.35;
-    while((n=broadcastRasp() )!= 1);
-    cout<<"listo"<<endl;
-    tcflush( arduino, TCIFLUSH );
-    if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
-    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
-    }
-    
-    operation_send.op=OP_VEL_ROBOT;
-    operation_send.len = sizeof (operation_send.data);
-    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-    
-    usleep(500);
-
-    
-    
-    while(n<MAXSINGNALLENGTH){
-       
-        gettimeofday(&tval_before,NULL);
-        
-        tcflush( arduino, TCIFLUSH );
-        if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
-         std::cout << "Error " << errno << " from tcsetattr" << std::endl;
-        }
-        
-        td=(double)n*SAMPLINGTIME/1000; 
-        
-        
-        numbytes= read(arduino,(char*)buf,MAXBUFLEN);
-        //cout<<numbytes<<endl;
-        operation_recv=( struct appdata*)&buf;
-        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
-        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
-        cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
-        cx=0;
-        count=0;
-        if(arucoInfo.size()>0)
-        {
-            
-            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
-            {
-                info.id.push_back((*it).id);
-                info.x.push_back((*it).x);
-                info.y.push_back((*it).y);
-                info.z.push_back((*it).z);
-                idRobot=(*it).id;              
-                cx += (*it).x;
-                z=(*it).z;
-                count++;
-            }
-            cx=cx/2*100;// times 100 becouse is in meters and we need in cm
-        }
-	info.td=td;
-	info.timeStamp=to_string(tval_before.tv_usec);
-    
-
-    snprintf(resultString, sizeof(resultString), "Robot2:Current time : %d s :%d us\n",tval_before.tv_sec, tval_before.tv_usec);
-	comServer.SendTalkerSocket(resultString,sizeof(resultString));
-	savelog.push_back(info);//save info in list
-	//cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
-	
-	
-    if(count==2){
-            
-            if(cx>5 || cx < -5){
-
-                w=-KP*cx;
-            }
-            else{
-                w=0;
-            }
-            
-            if(z <= 0.6){
-                
-                vel= -7.9*3.35;
-                
-                forward=false;
-            }
-            else if( z>0.85 ){
-                vel=7.9*3.35;
-                forward=true;
-            }
-            
-            if (correction){
-                if( forward){
-                 
-                    vel=7.9*3.35;
-                    correction=false;
-                }
-                else if( !forward){
-                    vel=-7.9*3.35;
-                    correction=false;
-                }
-            }
-                if(vel != auxVel || w != auxW || correction){
-                     auxVel=vel;
-                     auxW=w;
-                     velocity_robot[0]=w;
-                     velocity_robot[1]=vel;
-                     robot1.angularWheelSpeed(angularWheel,velocity_robot);
-
-                     doubleToBytes(angularWheel[0], &operation_send.data[0]);
-                     doubleToBytes(angularWheel[1], &operation_send.data[8]);
-                     operation_send.op=OP_MOVE_WHEEL;
-                     operation_send.len = sizeof (operation_send.data);
-                    cout<<"normal ;"<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-                     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-                }
-	}
-	else {
-                correction =true;
-                vel=0;
-                w=0;	
-                velocity_robot[0]=w;
-            	velocity_robot[1]=vel;
-                auxVel=vel;
-                auxW=w;
-            	robot1.angularWheelSpeed(angularWheel,velocity_robot);
-            	doubleToBytes(angularWheel[0], &operation_send.data[0]);
-            	doubleToBytes(angularWheel[1], &operation_send.data[8]);
-            	operation_send.op=OP_MOVE_WHEEL;
-            	operation_send.len = sizeof (operation_send.data);
-                cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-            	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-	    	    usleep(330000);
-		        count=0;
-                for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
-                {
-                   
-                    idRobot=it->id;              
-                   
-                    
-                        count++;
-                }  
-                
-                if(count !=2){
-                    
-                    vel=0;
-                    if(idRobot ==1){
-
-                        w=16*robot2.R/robot2.L;
-                    }
-                    else{
-                        
-                        w=-16*robot2.R/robot2.L;
-                    }
-            
-                
-           
-          
-                    velocity_robot[0]=w;
-                    velocity_robot[1]=vel;
-                    
-
-                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
-                    doubleToBytes(angularWheel[0], &operation_send.data[0]);
-                    doubleToBytes(angularWheel[1], &operation_send.data[8]);
-                    operation_send.op=OP_MOVE_WHEEL;
-                    operation_send.len = sizeof (operation_send.data);
-                    
-                    cout<<"giro correccion "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-                    
-                    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-                    usleep(160000);
-                    
-                    w=0;
-                    vel=0;
-                     auxVel=vel;
-                     auxW=w;
-                    velocity_robot[0]=w;
-                    velocity_robot[1]=vel;
-                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
-                    doubleToBytes(angularWheel[0], &operation_send.data[0]);
-                    doubleToBytes(angularWheel[1], &operation_send.data[8]);
-                    operation_send.op=OP_MOVE_WHEEL;
-                    operation_send.len = sizeof (operation_send.data);
-                    cout<<"parada2 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<"forward "<<forward<<endl;
-                    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-                    usleep(120000);
-                }
-	   	 
-        }
-	
-    
-        
-           
-
-	    //----------------------------------------------------
-            //cout<<"enviar VEL"<<endl;
-	    
-	    info.id.erase(info.id.begin(),info.id.end());
-	    info.x.erase(info.x.begin(),info.x.end());
-	    info.y.erase(info.y.begin(),info.y.end());
-	    info.z.erase(info.z.begin(),info.z.end());
-        n++;
-       
-        gettimeofday(&tval_after,NULL);
-        timersub(&tval_after,&tval_before,&tval_sample);
-        
-        if( tval_sample.tv_usec<0)
-        {
-            error("error time");
-        }
-        else if (tval_sample.tv_usec>SAMPLINGTIME)
-        {
-            //error("time of program greater than sample time");
-            cout<<"tiempo de programa mayor "<<tval_sample.tv_usec<<endl;
-        }
-        else
-        {
-	    
-            usleep((unsigned int)((suseconds_t)SAMPLINGTIME-tval_sample.tv_usec));
-            
-        }
-        
-        
-       
-        
-    }
-    vel=0;
-    w=0;
-    velocity_robot[0]=w;
-    velocity_robot[1]=vel;
-    robot1.angularWheelSpeed(angularWheel,velocity_robot);
-    cout<<"v: "<<vel<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
-    doubleToBytes(angularWheel[0], &operation_send.data[0]);
-    doubleToBytes(angularWheel[1], &operation_send.data[8]);
-    operation_send.op=OP_MOVE_WHEEL;
-    operation_send.len = sizeof (operation_send.data);
-            
-    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-            //----------------------------------------------------
-    //save data on logo.txt
-    cout<<"data save"<<endl;
-    logo.open("log.txt");
-    logo<<"robot1"<<endl;
-    logo<<"td,wD,wI,id,x,y,z,id,x,y,z"<<endl;
-    for(iter=savelog.begin();iter !=savelog.end();iter++)
-    {
-        string wheelVel1=to_string(iter->wheel_vel[0]);
-        string wheelVel2=to_string(iter->wheel_vel[1]);
-        string X,Y,Z;
-        
-        logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
-        for(int i=0; i<iter->id.size();i++){
-            X=to_string(iter->x.at(i));
-            Y=to_string(iter->y.at(i));
-            Z=to_string(iter->z.at(i));
-            logo<<","<<iter->id.at(i)<<","<<X<<","<<Y<<","<<Z;
-
-        }
-        logo<<endl;
-    }
-    
-    operation_send.op=OP_STOP_SERIAL;
-    operation_send.len = sizeof (operation_send.data);
-    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-    close(arduino);
-    return NULL;
-}
 int main(int argc,char **argv)
 {
-    pthread_t detectAruco;
+    
 
     SetupRobots();//prepare the network data of every robot
     record_data data;//struct for save in linked list
@@ -521,18 +187,21 @@ int main(int argc,char **argv)
     cv::FileStorage fs("calibration_params.yml", cv::FileStorage::READ);
     fs["camera_matrix"] >> camera_matrix;
     fs["distortion_coefficients"] >> dist_coeffs;
-
+    cv::Mat rotated_image;
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
 
     //---------------------------------end aruco code-----
     arucoInfo.clear();
     //aruco::DetectorParameters detectorParams;
-    pthread_create(&detectAruco,NULL,dataAruco,NULL);
+    pthread_create(&_detectAruco,NULL,dataAruco,NULL);//create thread for store the values of the markers
+    
     while (in_video.grab())
     {
         in_video.retrieve(image);
-	cvtColor(image,grayMat,cv::COLOR_BGR2GRAY);
+        cv::Mat for_Rotation = cv::getRotationMatrix2D(cv::Point2f((image.cols-1) / 2, (image.rows-1) / 2), (180), 1);//affine transformation matrix for the 2D rotation//
+	    cv::warpAffine(image,rotated_image,for_Rotation,image.size());
+        cvtColor(rotated_image,grayMat,cv::COLOR_BGR2GRAY);
         grayMat.copyTo(image_copy);
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f> > corners;
@@ -603,7 +272,7 @@ int main(int argc,char **argv)
             
         }
           
-     /* imshow("Pose estimation", image_copy);
+      /*imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
             break;*/
@@ -745,4 +414,440 @@ int broadcastRasp(){
 
 
 
+void *dataAruco(void *arg)
+{//thread function
+   
+    struct logo_data{
+        double td;
+        double wheel_vel[2];
+        vector<int> id;
+        vector<double> x;
+        vector<double> y;
+        vector<double> z;
+        string timeStamp;
+	
+    };
+    
+    int n=0;
+    string ipServer="192.168.78.2",portServer="4050";
+    ofstream logo("log.txt");
+    logo.close();//file created
 
+    list<logo_data> savelog;
+    list<logo_data>::iterator iter;
+    logo_data info;
+    
+   // robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
+    //in this case the experiment needs the velocity 
+    struct timeval tval_before, tval_after, tval_sample;
+    tval_sample.tv_sec=0;
+    tval_sample.tv_usec=0;
+
+   
+    double td;
+    int cont=0;
+    int idAux;
+
+
+    //comunication server 
+        comServer.initTalkerSocket(ipServer,portServer);
+
+    //-----------------------------SE CREA COMUNICACION USB------------------
+    int arduino = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
+    struct termios tty;
+    struct termios tty_old;
+    memset (&tty, 0, sizeof tty);
+    /* Error Handling */
+    if ( tcgetattr ( arduino, &tty ) != 0 ) {
+    std::cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << std::endl;
+    }
+    /* Save old tty parameters */
+    tty_old = tty;
+    /* Set Baud Rate */
+    cfsetospeed (&tty, (speed_t)B9600);
+    cfsetispeed (&tty, (speed_t)B9600);
+    /* Setting other Port Stuff */
+    tty.c_cflag     &=  ~PARENB;            // Make 8n1
+    tty.c_cflag     &=  ~CSTOPB;
+    tty.c_cflag     &=  ~CSIZE;
+    tty.c_cflag     |=  CS8;
+
+    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
+    tty.c_cc[VMIN]   =  1;                  // read doesn't block
+    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
+    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
+    /* Make raw */
+    cfmakeraw(&tty);
+
+
+     
+   
+
+    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
+    char resultString[120];
+    
+
+    while((n=broadcastRasp() )!= 1);//Waiting for broadcast
+    
+    tcflush( arduino, TCIFLUSH );//clean serial buffer
+    if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
+    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
+    }
+
+    pthread_create(&_Move,NULL,robotMove,(void*)arduino);//thread for move the robot
+    //send operation, arduino will send data until we say to stop it
+    operation_send.op=OP_VEL_ROBOT;
+    operation_send.len = sizeof (operation_send.data);
+    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+    //delay 
+    usleep(500);
+
+    
+    //main code for read variables
+    while(n<MAXSINGNALLENGTH){
+       
+        gettimeofday(&tval_before,NULL);
+        
+        tcflush( arduino, TCIFLUSH );
+        if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
+         std::cout << "Error " << errno << " from tcsetattr" << std::endl;
+        }
+        
+        td=(double)n*SAMPLINGTIME/1000; 
+        
+        
+        read(arduino,(char*)buf,MAXBUFLEN);
+        //cout<<numbytes<<endl;
+        operation_recv=( struct appdata*)&buf;
+        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
+        cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
+        cont=0;
+        if(arucoInfo.size()>0)
+        {
+            
+            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
+            {
+                
+                info.id.push_back((*it).id);
+                info.x.push_back((*it).x);
+                info.y.push_back((*it).y);
+                info.z.push_back((*it).z);
+                idAux=it->id;     
+                cont++;     
+                
+            }
+        }
+        if(cont == 0){
+            info.id.push_back(1);
+            info.x.push_back(-9999);
+            info.y.push_back(-9999);
+            info.z.push_back(-9999);
+            info.id.push_back(3);
+            info.x.push_back(-9999);
+            info.y.push_back(-9999);
+            info.z.push_back(-9999);
+        }
+        else if(cont==1){
+
+            if(idAux==2){
+                idAux=3;
+            }
+            else{
+                idAux=2;
+            }
+            
+            info.id.push_back(idAux);
+            info.x.push_back(-9999);
+            info.y.push_back(-9999);
+            info.z.push_back(-9999);
+        }
+	    info.td=td;
+	    info.timeStamp=to_string(tval_before.tv_usec);
+    
+
+        snprintf(resultString, sizeof(resultString), "Robot2:Current time : %ld s :%ld us\n",tval_before.tv_sec, tval_before.tv_usec);
+	    comServer.SendTalkerSocket(resultString,sizeof(resultString));
+	    savelog.push_back(info);//save info in list
+	    //cout<<"centro: "<<cx<<"z"<<z<<" count :"<<count<<","<<info.timeStamp<<endl;
+	
+	    //----------------------------------------------------
+            //cout<<"enviar VEL"<<endl;
+	    
+	    info.id.erase(info.id.begin(),info.id.end());
+	    info.x.erase(info.x.begin(),info.x.end());
+	    info.y.erase(info.y.begin(),info.y.end());
+	    info.z.erase(info.z.begin(),info.z.end());
+        n++;
+       
+        gettimeofday(&tval_after,NULL);
+        timersub(&tval_after,&tval_before,&tval_sample);
+        
+        if( tval_sample.tv_usec<0)
+        {
+            error("error time");
+        }
+        else if (tval_sample.tv_usec>SAMPLINGTIME)
+        {
+            //error("time of program greater than sample time");
+            cout<<"tiempo de programa mayor "<<tval_sample.tv_usec<<endl;
+        }
+        else
+        {
+	    
+            usleep((unsigned int)((suseconds_t)SAMPLINGTIME-tval_sample.tv_usec));
+            
+        }
+        
+        
+       
+        
+    }
+    //operation for stop robot
+    pthread_cancel(_Move);
+     double velocity_robot[2];
+    double angularWheel[2];
+    double vel=0;
+    double w=0;
+    velocity_robot[0]=w;
+    velocity_robot[1]=vel;
+    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+    cout<<"v: "<<vel<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+    doubleToBytes(angularWheel[1], &operation_send.data[8]);
+    operation_send.op=OP_MOVE_WHEEL;
+    operation_send.len = sizeof (operation_send.data);
+            
+    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+
+    //----------------------------------------------------
+    
+    //save data on logo.txt
+    cout<<"data save"<<endl;
+    logo.open("log.txt");
+    logo<<"robot1"<<endl;
+    logo<<"td(ms),wD,wI,id,x,y,z,id,x,y,z"<<endl;
+    for(iter=savelog.begin();iter !=savelog.end();iter++)
+    {
+        string wheelVel1=to_string(iter->wheel_vel[0]);
+        string wheelVel2=to_string(iter->wheel_vel[1]);
+        string X,Y,Z;
+        
+        logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
+        for(int i=0; i<iter->id.size();i++){
+            X=to_string(iter->x.at(i));
+            Y=to_string(iter->y.at(i));
+            Z=to_string(iter->z.at(i));
+            logo<<","<<iter->id.at(i)<<","<<X<<","<<Y<<","<<Z;
+
+        }
+        logo<<endl;
+    }
+    
+    operation_send.op=OP_STOP_SERIAL;
+    operation_send.len = sizeof (operation_send.data);
+    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+    close(arduino);
+    pthread_exit(NULL);
+    return NULL;
+}
+
+
+
+void *robotMove(void *arg){
+    _Move = pthread_self();
+
+
+    struct timeval tval_before, tval_after, tval_sample;
+    tval_sample.tv_sec=0;
+    tval_sample.tv_usec=0;
+
+    double vel=0;//linear velocity of robot
+    double auxVel=0,auxW=0;
+    int idRobot;   
+    double w=0;//angular velocity of robot
+    bool correction =false,forward;
+    int count=0;
+    double velocity_robot[2];
+    double angularWheel[2];
+    double cx;
+    double z;
+    int arduino=(int)arg;
+    vel=8*3.35;
+    const int SAMPLE_TIME=660000;//us
+    while(1){
+        
+        gettimeofday(&tval_before,NULL);
+        
+        cx=0;
+        count=0;
+        if(arucoInfo.size()>0)
+            {
+                
+                for(it2=arucoInfo.begin();it2 !=arucoInfo.end();it2++)
+                {
+                
+                    idRobot=(*it2).id;              
+                    cx += (*it2).x;
+                    z=(*it2).z;
+                    count++;
+                }
+                cx=cx/2*100;// times 100 becouse is in meters and we need in cm
+            }
+	cout<<"count: "<<count<<endl;
+        if(count==2){
+            
+                if(cx>5 || cx < -5){
+
+                    w=KP*cx;
+                }
+                else{
+                    w=0;
+                }
+                
+                if(z <= 0.6){
+                    
+                    vel= -7.9*3.35;
+                    
+                    forward=false;
+                }
+                else if( z>0.85 ){
+                    vel=7.9*3.35;
+                    forward=true;
+                }
+                
+                if (correction){
+                    if( forward){
+                    
+                        vel=7.9*3.35;
+                        correction=false;
+                    }
+                    else if( !forward){
+                        vel=-7.9*3.35;
+                        correction=false;
+                    }
+                }
+                if((vel != auxVel || w != auxW) || correction){
+                        auxVel=vel;
+                        auxW=w;
+                        //compute angular Wheel
+                        velocity_robot[0]=w;
+                        velocity_robot[1]=vel;
+                        robot1.angularWheelSpeed(angularWheel,velocity_robot);
+                        doubleToBytes(angularWheel[0], &operation_send.data[0]);
+                        doubleToBytes(angularWheel[1], &operation_send.data[8]);
+                
+		 	//send angular Wheel
+                        operation_send.op=OP_MOVE_WHEEL;
+                        operation_send.len = sizeof (operation_send.data);
+                    cout<<"normal ;"<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                        write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+
+                }
+	    }
+	    else {
+                correction =true;
+                vel=0;
+                w=0;
+		auxVel=vel;
+		auxW=w;	
+                velocity_robot[0]=w;
+            	velocity_robot[1]=vel;
+            	robot1.angularWheelSpeed(angularWheel,velocity_robot);
+            	doubleToBytes(angularWheel[0], &operation_send.data[0]);
+            	doubleToBytes(angularWheel[1], &operation_send.data[8]);
+
+            	operation_send.op=OP_MOVE_WHEEL;
+            	operation_send.len = sizeof (operation_send.data);
+                cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+            	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+
+	    	    usleep(330000);
+		        count=0;
+		
+        
+        
+                for(it2=arucoInfo.begin();it2 !=arucoInfo.end();it2++)
+                {
+                   
+                    idRobot=it2->id;              
+                   
+                    
+                        count++;
+                } 
+		
+                
+                if(count !=2){
+                    
+                    vel=0;
+
+                    if(idRobot ==1){
+
+                        w=16*robot2.R/robot2.L;
+                    }
+                    else{
+                        
+                        w=-16*robot2.R/robot2.L;
+                    }
+            
+                
+           
+          
+                    velocity_robot[0]=w;
+                    velocity_robot[1]=vel;
+                    
+
+                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+                    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+                    doubleToBytes(angularWheel[1], &operation_send.data[8]);
+                    operation_send.op=OP_MOVE_WHEEL;
+                    operation_send.len = sizeof (operation_send.data);
+                    
+                    cout<<"giro correccion "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+                    
+                    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+                    usleep(160000);
+                    
+                    w=0;
+                    vel=0;
+                    velocity_robot[0]=w;
+                    velocity_robot[1]=vel;
+                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
+                    doubleToBytes(angularWheel[0], &operation_send.data[0]);
+                    doubleToBytes(angularWheel[1], &operation_send.data[8]);
+                    operation_send.op=OP_MOVE_WHEEL;
+                    operation_send.len = sizeof (operation_send.data);
+                    cout<<"parada2 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<"forward "<<forward<<endl;
+                    write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
+                    usleep(120000);
+                }
+	   	 
+            }
+            
+            gettimeofday(&tval_after,NULL);
+            timersub(&tval_after,&tval_before,&tval_sample);
+        
+            if( tval_sample.tv_usec<0)
+       	    {
+           	 error("error time");
+       	    }
+       	    else if (tval_sample.tv_usec>SAMPLE_TIME)
+            {
+           	 //error("time of program greater than sample time");
+           	 cout<<"(movimiento)tiempo de programa mayor "<<tval_sample.tv_usec<<endl;
+       	    }
+            else
+           {
+	    
+          	  usleep((unsigned int)((suseconds_t)SAMPLE_TIME-tval_sample.tv_usec));
+            
+       	    }
+        
+    
+
+
+        
+    }
+    pthread_exit(NULL);
+    return NULL;
+}
