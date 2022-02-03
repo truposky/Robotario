@@ -272,10 +272,10 @@ int main(int argc,char **argv)
             
         }
           
-      /*imshow("Pose estimation", image_copy);
+      imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;*/
+            break;
     }
 
     in_video.release();
@@ -429,7 +429,7 @@ void *dataAruco(void *arg)
     };
     
     int n=0;
-    string ipServer="192.168.78.2",portServer="4050";
+    string ipServer="192.168.78.2",portServer="4052";
     ofstream logo("log.txt");
     logo.close();//file created
 
@@ -486,13 +486,13 @@ void *dataAruco(void *arg)
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     char resultString[120];
     
-
-    while((n=broadcastRasp() )!= 1);//Waiting for broadcast
-    
     tcflush( arduino, TCIFLUSH );//clean serial buffer
     if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
     std::cout << "Error " << errno << " from tcsetattr" << std::endl;
     }
+    while((n=broadcastRasp() )!= 1);//Waiting for broadcast
+    
+    
 
     pthread_create(&_Move,NULL,robotMove,(void*)arduino);//thread for move the robot
     //send operation, arduino will send data until we say to stop it
@@ -521,7 +521,7 @@ void *dataAruco(void *arg)
         operation_recv=( struct appdata*)&buf;
         info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
         info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
-        cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
+        //cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
         cont=0;
         if(arucoInfo.size()>0)
         {
@@ -675,6 +675,7 @@ void *robotMove(void *arg){
     int arduino=(int)arg;
     vel=8*3.35;
     const int SAMPLE_TIME=660000;//us
+    
     while(1){
         
         gettimeofday(&tval_before,NULL);
@@ -683,10 +684,8 @@ void *robotMove(void *arg){
         count=0;
         if(arucoInfo.size()>0)
             {
-                
-                for(it2=arucoInfo.begin();it2 !=arucoInfo.end();it2++)
-                {
-                
+               
+                for(it2=arucoInfo.begin();it2 !=arucoInfo.end();it2++){
                     idRobot=(*it2).id;              
                     cx += (*it2).x;
                     z=(*it2).z;
@@ -699,7 +698,7 @@ void *robotMove(void *arg){
             
                 if(cx>5 || cx < -5){
 
-                    w=KP*cx;
+                    w=-KP*cx;
                 }
                 else{
                     w=0;
@@ -727,7 +726,7 @@ void *robotMove(void *arg){
                         correction=false;
                     }
                 }
-                if((vel != auxVel || w != auxW) || correction){
+                if(vel != auxVel || w != auxW || correction){
                         auxVel=vel;
                         auxW=w;
                         //compute angular Wheel
@@ -736,8 +735,7 @@ void *robotMove(void *arg){
                         robot1.angularWheelSpeed(angularWheel,velocity_robot);
                         doubleToBytes(angularWheel[0], &operation_send.data[0]);
                         doubleToBytes(angularWheel[1], &operation_send.data[8]);
-                
-		 	//send angular Wheel
+                        //send angular Wheel
                         operation_send.op=OP_MOVE_WHEEL;
                         operation_send.len = sizeof (operation_send.data);
                     cout<<"normal ;"<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
@@ -748,9 +746,7 @@ void *robotMove(void *arg){
 	    else {
                 correction =true;
                 vel=0;
-                w=0;
-		auxVel=vel;
-		auxW=w;	
+                w=0;	
                 velocity_robot[0]=w;
             	velocity_robot[1]=vel;
             	robot1.angularWheelSpeed(angularWheel,velocity_robot);
@@ -793,6 +789,11 @@ void *robotMove(void *arg){
                 
            
           
+                    velocity_robot[0]=w;
+                    velocity_robot[1]=vel;
+                    
+
+                    robot1.angularWheelSpeed(angularWheel,velocity_robot);
                     velocity_robot[0]=w;
                     velocity_robot[1]=vel;
                     
@@ -845,9 +846,5 @@ void *robotMove(void *arg){
         
     
 
-
-        
     }
-    pthread_exit(NULL);
-    return NULL;
 }
