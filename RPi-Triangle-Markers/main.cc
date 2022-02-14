@@ -34,6 +34,7 @@
 #include <math.h> 
 #include <fstream>
 #include <bits/stdc++.h>
+#include <termios.h>    // POSIX terminal control definitions
 using namespace std;
 using namespace tinyxml2;
 
@@ -61,7 +62,7 @@ const char* keys  =
 #define MYPORT "4242"   // the port users will be connecting to
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 500000 // in usec
-#define MAXSINGNALLENGTH 100
+#define MAXSINGNALLENGTH 5
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.0185;
 // get sockaddr, IPv4 or IPv6:
@@ -77,6 +78,7 @@ void tokenize(const string s, char c,vector<string>& v);//split the string
 void concatenateChar(char c, char *word);//not used for now
 void operationSend();//allow the user choose an instruction for send to the robot
 void SetupRobots();//copy the information in the xml file to save in the class robot.
+int broadCast();
 void error(const char *msg)
 {
     perror(msg);
@@ -90,6 +92,8 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 void SetupRobots();
+void SerialCommunication(int id,string ip,string port,int instructions);//serial communication for robot same as udp
+
 enum {r1, r2, r3, r4,r5};
      //definition of robots
 Robot robot1,robot2,robot3,robot4;//se define la clase para los distintos robots.
@@ -129,42 +133,34 @@ void *dataAruco(void *arg)
     list<logo_data> savelog;
     list<logo_data>::iterator iter;
     logo_data info;
-    robot1.SetupConection(id,ip,port);//for now only use 1 robot for communication
+    robot2.SetupConection(id,ip,port);//for now only use 1 robot for communication
     //in this case the experiment needs the velocity 
     struct timeval tval_before, tval_after, tval_sample;
     tval_sample.tv_sec=0;
     tval_sample.tv_usec=0;
 
     int n=0;
-    double fs=1/0.5;
-
-    double f0=fs/6;
-
-    double w0=2*M_PI*f0;
-    double A=5;
-    double vel=0;//linear velocity of robot
-    double td;
-    double w=0;//angular velocity of robot
 
     double velocity_robot[2];
     double angularWheel[2];
     int meanPoint=0,auxId=0;
     float auxDegree=0;
+    double td;
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
 
     while(n<MAXSINGNALLENGTH){
         
         gettimeofday(&tval_before,NULL);
-        td=(float)n*0.5; 
+        td=(double)n*0.5; 
         
-        comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
-
+      // comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        SerialCommunication(id,ip,port,OP_VEL_ROBOT);
         info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
         info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
 	
 	
-	info.td=td;
-	int cont=0;
+        info.td=td;
+        int cont=0;
         auxDegree=0;
         if(arucoInfo.size()>0)
         {
@@ -192,45 +188,7 @@ void *dataAruco(void *arg)
         
         meanPoint=meanPoint/2;
         //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
-        vel=A*w0*sin(w0*td);
-
-	if(vel>0){
-        vel=7.8*3.35;
-	}
-	else if(vel<0) {
-		vel=-7.8*3.35;
-        w=-w;
-	}
-	else{
-	       	vel=0;
-	}
-
-	w=0;
-        if (cont==2 && vel !=0 )
-
-      
-        {
-            float error=(float)(CENTER-meanPoint);
-            float minerror=15;
-            if ((error >0 && error > minerror) || (error<0 && error < -1*minerror))
-            {
-                w=(double)(CENTER-meanPoint)*KP;//angular velocity
-                
-            }
-	
-        }
-        if (cont==2){
-                if(auxDegree>28 && vel >0)
-                {
-                    vel=-vel;
-                }
-                else if(auxDegree<24 && vel<0)
-            {
-                vel=-vel;
-                }
-        
-        }
-        n++;
+    
         meanPoint=0;
         savelog.push_back(info);
         info.id.erase(info.id.begin(),info.id.end());
@@ -238,15 +196,15 @@ void *dataAruco(void *arg)
 	
         //-----------------------move--------------------------
        // memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
-        velocity_robot[0]=w;
+      /*  velocity_robot[0]=w;
         velocity_robot[1]=vel;
         robot1.angularWheelSpeed(angularWheel,velocity_robot);
         cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
         doubleToBytes(angularWheel[0], &operation_send.data[0]);
         doubleToBytes(angularWheel[1], &operation_send.data[8]);
         //----------------------------------------------------
-        comRobot(id,ip,port,OP_MOVE_WHEEL);
-        
+        comRobot(id,ip,port,OP_MOVE_WHEEL);*/
+        n++;
 	gettimeofday(&tval_after,NULL);
         timersub(&tval_after,&tval_before,&tval_sample);
         
@@ -270,8 +228,7 @@ void *dataAruco(void *arg)
        
         
     }
-    vel=0;
-    w=0;
+  
    /* robot1.angularWheelSpeed(angularWheel,velocity_robot);
     snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
     snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
@@ -338,7 +295,7 @@ int main(int argc,char **argv)
         if (!end || end == videoInput.c_str()) {
             in_video.open(videoInput); // url
             in_video.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
-			in_video.set(cv::CAP_PROP_FPS,30);
+			in_video.set(cv::CAP_PROP_FPS,40);
         } else {
             in_video.open(source); // id
         }
@@ -366,13 +323,18 @@ int main(int argc,char **argv)
     cv::FileStorage fs("calibration_params.yml", cv::FileStorage::READ);
     fs["camera_matrix"] >> camera_matrix;
     fs["distortion_coefficients"] >> dist_coeffs;
+ // Default resolutions of the frame are obtained.The default resolutions are system dependent.
 
+	  int frame_width = in_video.get(cv::CAP_PROP_FRAME_WIDTH);
+
+    int frame_height = in_video.get(cv::CAP_PROP_FRAME_HEIGHT);
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-
+     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height));
     //---------------------------------end aruco code-----
     arucoInfo.clear();
-    pthread_create(&detectAruco,NULL,dataAruco,NULL);
+    //pthread_create(&detectAruco,NULL,dataAruco,NULL);
+    broadCast();
     while (in_video.grab())
     {
         in_video.retrieve(image);
@@ -394,10 +356,10 @@ int main(int argc,char **argv)
                 << std::endl;
             */
             // Draw axis for each marker
-            /*for(int i=0; i < data.ids.size(); i++)
+            for(int i=0; i < ids.size(); i++)
             {
                 cv::aruco::drawAxis(image_copy, camera_matrix, dist_coeffs,
-                        data.rvecs[i], data.tvecs[i], 0.1);
+                        rvecs[i], tvecs[i], 0.1);
 
                 // This section is going to print the data for all the detected
                 // markers. If you have more than a single marker, it is
@@ -406,7 +368,7 @@ int main(int argc,char **argv)
                 // data for each marker separately.
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
-                                 << "x: " << std::setw(8) << data.tvecs[0](0);
+                                 << "x: " << std::setw(8) << tvecs[0](0);
                             
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6,
@@ -414,18 +376,18 @@ int main(int argc,char **argv)
 
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
-                                 << "y: " << std::setw(8) << data.tvecs[0](1);
+                                 << "y: " << std::setw(8) << tvecs[0](1);
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
 
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
-                                 << "z: " << std::setw(8) << data.tvecs[0](2);
+                                 << "z: " << std::setw(8) << tvecs[0](2);
                 cv::putText(image_copy, vector_to_marker.str(),
                             cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
-            }*/
+            }
             //mutex
            pthread_mutex_lock(&mutex_);
             
@@ -455,7 +417,7 @@ int main(int argc,char **argv)
             arucoInfo.clear();
         }
         //end mutex
-
+        video.write(image_copy);
       /*imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
@@ -463,6 +425,8 @@ int main(int argc,char **argv)
     }
 
     in_video.release();
+    video.release();
+    //destroyALLWindows();
     pthread_exit(NULL);
     return 0;
 }
@@ -617,58 +581,87 @@ int comRobot(int id,string ip,string port,int instruction){
 
 
 }
-int broadCast(){
 
-    //se crea el socket y se establece la comunicación
-    int bcast_sock;
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
+void SerialCommunication(int id,string ip,string port,int instruction){
     int numbytes;
+    int USB = open( "/dev/ttyACM0", O_RDWR| O_NOCTTY );
 
-    
+    struct termios tty;
+    struct termios tty_old;
+    memset (&tty, 0, sizeof tty);
 
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // set to AF_INET to force IPv4
-    hints.ai_socktype = SOCK_DGRAM;
-   //hints.ai_flags = IPPROTO_UDP; 
-
-
-    
-    if ((rv = getaddrinfo("192.168.78.255", "6868", &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return -1;
+    /* Error Handling */
+    if ( tcgetattr ( USB, &tty ) != 0 ) {
+    std::cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << std::endl;
     }
-int broadcastEnable=1;
 
-    for(p = servinfo; p != NULL; p = p->ai_next) 
-    {
-        if ((bcast_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) 
-        {
-            perror("talker: socket");
-            continue;
-        }
-        if (setsockopt(bcast_sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable))){
-            cout<<"fail"<<endl;//perror("setsockopt failed:");
-        }
-    break;
+    /* Save old tty parameters */
+    tty_old = tty;
+
+    /* Set Baud Rate */
+    cfsetospeed (&tty, (speed_t)B9600);
+    cfsetispeed (&tty, (speed_t)B9600);
+
+    /* Setting other Port Stuff */
+    tty.c_cflag     &=  ~PARENB;            // Make 8n1
+    tty.c_cflag     &=  ~CSTOPB;
+    tty.c_cflag     &=  ~CSIZE;
+    tty.c_cflag     |=  CS8;
+
+    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
+    tty.c_cc[VMIN]   =  1;                  // read doesn't block
+    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
+    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
+
+    /* Make raw */
+    cfmakeraw(&tty);
+
+    /* Flush Port, then applies attributes */
+    tcflush( USB, TCIFLUSH );
+    if ( tcsetattr ( USB, TCSANOW, &tty ) != 0) {
+    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
+    }
+
+
+    unsigned char cmd[] = "b";
+    operation_send.id=id;//se asigna el id del robot1
+   /* double wD=8,wI=8;
+    doubleToBytes(wD, &operation_send.data[0]);
+    doubleToBytes(wI, &operation_send.data[8]);*/
+    operation_send.len = sizeof (operation_send.data);
+    operation_send.op=instruction;
    
-    }
 
-    if (p == NULL) {
-        fprintf(stderr, "talker: failed to create socket\n");
-        return 2;
-    }
-    memset (buf, '\0', MAXDATASIZE); /* Pone a cero el buffer inicialmente */
-    //aqui se indica la operacion que se desea realizar
-    operation_send.id=99;//se asigna el id del robot1
-    operation_send.len = sizeof(operation_send.data);
-    operation_send.op=OP_BROADCAST;
+    write( USB,(char*) &operation_send, operation_send.len );
+     if(operation_send.op != OP_MOVE_WHEEL)
+    { //this condition is only for the raspberry experiment, to avoiud  a big wait time;
+       numbytes= read(USB,(char*)buf,MAXBUFLEN);
+        operation_recv=( struct appdata*)&buf;
 
-    if ((numbytes = sendto(bcast_sock,(char *) &operation_send, operation_send.len+HEADER_LEN, 0,p->ai_addr, p->ai_addrlen)) == -1)
-    {
-        perror("talker: sendto");
-        exit(1);
+        if((numbytes< HEADER_LEN) || (numbytes != operation_recv->len+HEADER_LEN) )
+        {
+            
+            cout<<"(servidor) unidad de datos incompleta :"<<numbytes<<endl;
+            cout<<"len: "<<operation_recv->len<<endl;
+        }
+        else
+        {
+              // relaiza operacion solicitada por el cliente 
+
+            switch (operation_recv->op){
+                case OP_SALUDO:
+                    //cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_MESSAGE_RECIVE:
+                    
+                    //cout<<" contenido "<<operation_recv->data<<endl;
+                break;
+                case OP_VEL_ROBOT:
+
+                break;
+            }
+       
+      //  memset (buf, '\0', MAXDATASIZE);
+        }
     }
-    return 0;
 }
