@@ -60,8 +60,13 @@ const char* keys  =
 #define MYPORT "4240"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
+<<<<<<< HEAD
 #define SAMPLINGTIME 100000 // in usec
 #define MAXSINGNALLENGTH 2000
+=======
+#define SAMPLINGTIME 500000 // in usec
+#define MAXSINGNALLENGTH 5
+>>>>>>> master
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.00535;
 // get sockaddr, IPv4 or IPv6:
@@ -72,6 +77,15 @@ string convertToString(char* a, int size)
     return s;
 }
 //----prototipos-----//
+<<<<<<< HEAD
+=======
+int comRobot(int id,string ip,string port,int instruction);//used for send and recive instructions and data for every robot
+void tokenize(const string s, char c,vector<string>& v);//split the string 
+void concatenateChar(char c, char *word);//not used for now
+void operationSend();//allow the user choose an instruction for send to the robot
+void SetupRobots();//copy the information in the xml file to save in the class robot.
+int broadCast();
+>>>>>>> master
 void error(const char *msg)
 {
     perror(msg);
@@ -92,6 +106,10 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 void SetupRobots();
+<<<<<<< HEAD
+=======
+void SerialCommunication(int id,string ip,string port,int instructions);//serial communication for robot same as udp
+>>>>>>> master
 
 enum {r1, r2, r3, r4,r5};
      //definition of robots
@@ -113,8 +131,151 @@ list<record_data>::iterator it2;
 pthread_mutex_t mutex_ = PTHREAD_MUTEX_INITIALIZER;
 pthread_t _Move, _detectAruco; ;
 
+<<<<<<< HEAD
 
 
+=======
+float PixeltoDegree(int cx){
+    float degree=(cx+256.47368)/6.38772;
+    return degree;
+}
+
+void *dataAruco(void *arg)
+{//thread function
+
+    struct logo_data{
+        double td;
+        double wheel_vel[2];
+        vector<int> id;
+        vector<float> degree;
+    };
+    int id;
+    string ip,port;
+    ofstream logo("logo.txt");
+    logo.close();//file created
+
+    list<logo_data> savelog;
+    list<logo_data>::iterator iter;
+    logo_data info;
+    robot2.SetupConection(id,ip,port);//for now only use 1 robot for communication
+    //in this case the experiment needs the velocity 
+    struct timeval tval_before, tval_after, tval_sample;
+    tval_sample.tv_sec=0;
+    tval_sample.tv_usec=0;
+
+    int n=0;
+
+    double velocity_robot[2];
+    double angularWheel[2];
+    int meanPoint=0,auxId=0;
+    float auxDegree=0;
+    double td;
+    while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
+
+    while(n<MAXSINGNALLENGTH){
+        
+        gettimeofday(&tval_before,NULL);
+        td=(double)n*0.5; 
+        
+      // comRobot(id,ip,port,OP_VEL_ROBOT);//request for the velocity of the robot
+        SerialCommunication(id,ip,port,OP_VEL_ROBOT);
+        info.wheel_vel[0] = bytesToDouble(&operation_recv->data[0]);
+        info.wheel_vel[1] = bytesToDouble(&operation_recv->data[8]);
+	
+	
+        info.td=td;
+        int cont=0;
+        auxDegree=0;
+        if(arucoInfo.size()>0)
+        {
+            for(it=arucoInfo.begin();it !=arucoInfo.end();it++)
+            {
+                info.id.push_back(it->id);
+                info.degree.push_back(it->degree);
+                cout<<"loop:"<<it->id<<","<<it->degree<<endl;
+                meanPoint+=it->cx;
+                
+                auxId=it->id;
+                if(cont ==0)
+                {
+                    auxDegree=it->degree;
+                }
+                else if(cont ==1)
+                {
+                    auxDegree=auxDegree-it->degree;
+                    if(auxDegree<0)auxDegree=-auxDegree;
+                }
+                cont++;
+                
+            }
+        }
+        
+        meanPoint=meanPoint/2;
+        //cout<<"meanpoint: "<<meanPoint<<",degree:"<<auxDegree<<endl;
+    
+        meanPoint=0;
+        savelog.push_back(info);
+        info.id.erase(info.id.begin(),info.id.end());
+        info.degree.erase(info.degree.begin(),info.degree.end());
+	
+        //-----------------------move--------------------------
+       // memset (operation_send.data, '\0',MAXDATASIZE-HEADER_LEN);//is necesary for measure the length, strlen needs \0
+      /*  velocity_robot[0]=w;
+        velocity_robot[1]=vel;
+        robot1.angularWheelSpeed(angularWheel,velocity_robot);
+        cout<<"w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
+        doubleToBytes(angularWheel[0], &operation_send.data[0]);
+        doubleToBytes(angularWheel[1], &operation_send.data[8]);
+        //----------------------------------------------------
+        comRobot(id,ip,port,OP_MOVE_WHEEL);*/
+        n++;
+	gettimeofday(&tval_after,NULL);
+        timersub(&tval_after,&tval_before,&tval_sample);
+        
+        if( tval_sample.tv_usec<0)
+        {
+            error("error time");
+        }
+        else if (tval_sample.tv_usec>SAMPLINGTIME)
+        {
+            //error("time of program greater than sample time");
+            cout<<"tiempo de programa mayor "<<tval_sample.tv_usec<<endl;
+        }
+        else
+        {
+           
+            usleep(SAMPLINGTIME-tval_sample.tv_usec);
+            
+        }
+        
+        
+       
+        
+    }
+  
+   /* robot1.angularWheelSpeed(angularWheel,velocity_robot);
+    snprintf(operation_send.data,sizeof(angularWheel[0]),"%f",angularWheel[0]);     
+    snprintf(wc,sizeof(angularWheel[1]),"%f",angularWheel[1]);
+    strcat(operation_send.data,&del); 
+    strcat(operation_send.data,wc); 
+    //comRobot(id,ip,port,OP_MOVE_WHEEL);
+    */
+    //save data on logo.txt
+    cout<<"data save"<<endl;
+    logo.open("logo.txt");
+    for(iter=savelog.begin();iter !=savelog.end();iter++)
+    {
+        string wheelVel1=to_string(iter->wheel_vel[0]);
+        string wheelVel2=to_string(iter->wheel_vel[1]);
+        logo<<iter->td<<","<<wheelVel1<<","<<wheelVel2;
+        for(int i=0; i<iter->id.size();i++){
+            logo<<","<<iter->id.at(i)<<","<<iter->degree.at(i);
+        }
+        logo<<endl;
+    }
+    return NULL;
+}
+>>>>>>> master
 int main(int argc,char **argv)
 {
     
@@ -159,7 +320,7 @@ int main(int argc,char **argv)
         if (!end || end == videoInput.c_str()) {
             in_video.open(videoInput); // url
             in_video.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
-			in_video.set(cv::CAP_PROP_FPS,30);
+			in_video.set(cv::CAP_PROP_FPS,40);
         } else {
             in_video.open(source); // id
         }
@@ -190,7 +351,7 @@ int main(int argc,char **argv)
     cv::Mat rotated_image;
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-
+     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height));
     //---------------------------------end aruco code-----
     arucoInfo.clear();
     //aruco::DetectorParameters detectorParams;
@@ -279,6 +440,8 @@ int main(int argc,char **argv)
     }
 
     in_video.release();
+    video.release();
+    //destroyALLWindows();
     pthread_exit(NULL);
     return 0;
 }
