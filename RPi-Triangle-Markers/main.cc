@@ -61,9 +61,9 @@ const char* keys  =
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 40000 // in usec
-#define MAXSINGNALLENGTH 2000
+#define MAXSINGNALLENGTH 1000
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.00965;
+const float KP=0.00975;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -541,11 +541,11 @@ void *dataAruco(void *arg)
             }
         }
         if(cont == 0){
-            info.id.push_back(1);
+            info.id.push_back(900);
             info.x.push_back(-9999);
             info.y.push_back(-9999);
             info.z.push_back(-9999);
-            info.id.push_back(3);
+            info.id.push_back(900);
             info.x.push_back(-9999);
             info.y.push_back(-9999);
             info.z.push_back(-9999);
@@ -553,10 +553,10 @@ void *dataAruco(void *arg)
         else if(cont==1){
 
             if(idAux==2){
-                idAux=3;
+                idAux=900;
             }
             else{
-                idAux=2;
+                idAux=900;
             }
             
             info.id.push_back(idAux);
@@ -849,5 +849,3 @@ void *robotMove(void *arg){
         
     
 
-    }
-}
