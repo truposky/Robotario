@@ -159,7 +159,7 @@ int main(int argc,char **argv)
         if (!end || end == videoInput.c_str()) {
             in_video.open(videoInput); // url
             in_video.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
-			in_video.set(cv::CAP_PROP_FPS,30);
+			in_video.set(cv::CAP_PROP_FPS,40);
         } else {
             in_video.open(source); // id
         }
@@ -190,7 +190,7 @@ int main(int argc,char **argv)
     cv::Mat rotated_image;
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-
+     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height));
     //---------------------------------end aruco code-----
     arucoInfo.clear();
     //aruco::DetectorParameters detectorParams;
@@ -279,6 +279,8 @@ int main(int argc,char **argv)
     }
 
     in_video.release();
+    video.release();
+    //destroyALLWindows();
     pthread_exit(NULL);
     return 0;
 }
