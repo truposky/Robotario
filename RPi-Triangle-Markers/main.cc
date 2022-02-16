@@ -60,10 +60,10 @@ const char* keys  =
 #define MYPORT "4240"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 100000 // in usec
+#define SAMPLINGTIME 40000 // in usec
 #define MAXSINGNALLENGTH 2000
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
-const float KP=0.00535;
+const float KP=0.00965;
 // get sockaddr, IPv4 or IPv6:
  char buf[MAXDATASIZE];
 string convertToString(char* a, int size)
@@ -272,10 +272,10 @@ int main(int argc,char **argv)
             
         }
           
-      imshow("Pose estimation", image_copy);
+    /*  imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
-            break;
+            break;*/
     }
 
     in_video.release();
@@ -673,8 +673,8 @@ void *robotMove(void *arg){
     double cx;
     double z;
     int arduino=(int)arg;
-    vel=8*3.35;
-    const int SAMPLE_TIME=660000;//us
+    vel=7*3.35;
+    const int SAMPLE_TIME=800000;//us
     
     while(1){
         
@@ -693,8 +693,8 @@ void *robotMove(void *arg){
                 }
                 cx=cx/2*100;// times 100 becouse is in meters and we need in cm
             }
-	cout<<"count: "<<count<<endl;
-        if(count==2){
+	cout<<"count: "<<count<<","<<count<<endl;
+        if(count > 1){
             
                 if(cx>5 || cx < -5){
 
@@ -704,29 +704,30 @@ void *robotMove(void *arg){
                     w=0;
                 }
                 
-                if(z <= 0.6){
+                if(z <= 0.69){
                     
-                    vel= -7.9*3.35;
-                    
+                    vel= -7.6*3.35;
+                    w=-w; 
                     forward=false;
                 }
-                else if( z>0.85 ){
-                    vel=7.9*3.35;
+                else if( z>0.98 ){
+                    vel=7.6*3.35;
                     forward=true;
                 }
                 
                 if (correction){
                     if( forward){
                     
-                        vel=7.9*3.35;
+                        vel=7.6*3.35;
                         correction=false;
                     }
                     else if( !forward){
-                        vel=-7.9*3.35;
+                        vel=-7.6*3.35;
                         correction=false;
                     }
                 }
-                if(vel != auxVel || w != auxW || correction){
+
+                if((vel != auxVel || w != auxW) || correction){
                         auxVel=vel;
                         auxW=w;
                         //compute angular Wheel
@@ -745,8 +746,8 @@ void *robotMove(void *arg){
 	    }
 	    else {
                 correction =true;
-                vel=0;
-                w=0;	
+              /* // vel=0;
+               // w=0;	
                 velocity_robot[0]=w;
             	velocity_robot[1]=vel;
             	robot1.angularWheelSpeed(angularWheel,velocity_robot);
@@ -757,8 +758,8 @@ void *robotMove(void *arg){
             	operation_send.len = sizeof (operation_send.data);
                 cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
             	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-
-	    	    usleep(330000);
+		*/
+	    	    usleep(200000);
 		        count=0;
 		
         
@@ -779,11 +780,11 @@ void *robotMove(void *arg){
 
                     if(idRobot ==1){
 
-                        w=16*robot2.R/robot2.L;
+                        w=15*robot2.R/robot2.L;
                     }
                     else{
                         
-                        w=-16*robot2.R/robot2.L;
+                        w=-15*robot2.R/robot2.L;
                     }
             
                 
@@ -807,7 +808,7 @@ void *robotMove(void *arg){
                     cout<<"giro correccion "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
                     
                     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-                    usleep(160000);
+                    usleep(140000);
                     
                     w=0;
                     vel=0;
@@ -820,7 +821,7 @@ void *robotMove(void *arg){
                     operation_send.len = sizeof (operation_send.data);
                     cout<<"parada2 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<"forward "<<forward<<endl;
                     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
-                    usleep(120000);
+                //    usleep(95000);
                 }
 	   	 
             }
