@@ -60,8 +60,8 @@ const char* keys  =
 #define MYPORT "4240"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
-#define SAMPLINGTIME 40000 // in usec
-#define MAXSINGNALLENGTH 2000
+#define SAMPLINGTIME 20000 // in usec
+#define MAXSINGNALLENGTH 4000
 #define CENTER 320 //this is the setpoint for a distance between markers of 30 cm (in degree)
 const float KP=0.01075;
 // get sockaddr, IPv4 or IPv6:
@@ -183,14 +183,18 @@ int main(int argc,char **argv)
     cv::Ptr<cv::aruco::Dictionary> dictionary =
         cv::aruco::getPredefinedDictionary( \
         cv::aruco::PREDEFINED_DICTIONARY_NAME(dictionaryId));
-    
+   
+    int frame_width=in_video.get(cv::CAP_PROP_FRAME_WIDTH); 
+    int frame_height = in_video.get(cv::CAP_PROP_FRAME_HEIGHT);  
+
     cv::FileStorage fs("calibration_params.yml", cv::FileStorage::READ);
     fs["camera_matrix"] >> camera_matrix;
     fs["distortion_coefficients"] >> dist_coeffs;
+   
     cv::Mat rotated_image;
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-//     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height));
+     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height));
     //---------------------------------end aruco code-----
     arucoInfo.clear();
     //aruco::DetectorParameters detectorParams;
@@ -271,7 +275,7 @@ int main(int argc,char **argv)
             }
             
         }
-          
+   	video.write(image_copy);       
     /*  imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
@@ -279,8 +283,8 @@ int main(int argc,char **argv)
     }
 
     in_video.release();
-//    video.release();
-    //destroyALLWindows();
+    video.release();
+   //// destroyALLWindows();
     pthread_exit(NULL);
     return 0;
 }
@@ -478,7 +482,7 @@ void *dataAruco(void *arg)
 
     tty.c_cflag     &=  ~CRTSCTS;           // no flow control
     tty.c_cc[VMIN]   =  1;                  // read doesn't block
-    tty.c_cc[VTIME]  =  5;                  // 0.5 seconds read timeout
+    tty.c_cc[VTIME]  =  1;                  // 0.5 seconds read timeout
     tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
     /* Make raw */
     cfmakeraw(&tty);
@@ -490,10 +494,7 @@ void *dataAruco(void *arg)
     while(arucoInfo.size()<=0);//the thread stop it until an aruco is detected
     unsigned char buff[249];
     char resultString[120]; 
-    tcflush( arduino, TCIFLUSH );//clean serial buffer
-    if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
-    std::cout << "Error " << errno << " from tcsetattr" << std::endl;
-    }
+    
     while((n=broadcastRasp() )!= 1);//Waiting for broadcast
     
     cout<<"start"<<endl;  
@@ -517,24 +518,34 @@ void *dataAruco(void *arg)
        
         gettimeofday(&tval_before,NULL);
         
-       tcflush( arduino, TCIFLUSH );
+        tcflush( arduino, TCIFLUSH );
         if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
          std::cout << "Error " << errno << " from tcsetattr" << std::endl;
-        }
-        memset(buff,'\0',MAXBUFLEN);
-        td=(double)n*SAMPLINGTIME/1000; 
+        }	
+
+       // memset(buff,'\0',MAXBUFLEN);
+       
+       	td=(double)n*SAMPLINGTIME/1000; 
         
-        int i=0;
+        int l=0;
 	unsigned char d;
        
 	numbytes=0;
-	while(numbytes=read(arduino,&d,1) != -1){
+/*	while(numbytes=read(arduino,&d,1) != -1){
 		buff[i]=d;
 		
 		i++;
 		if( d == '\0') break;
-	}
+	}*/
+	for(int i=0;i<18;i++){
+
+		numbytes=read(arduino,&d,1);
+		buff[i]=d;
+		l++;
 		
+	}
+			
+
 
 	info.wheel_vel[0] = bytesToDouble(&buff[0]);
         info.wheel_vel[1] = bytesToDouble(&buff[8]);
@@ -548,7 +559,7 @@ void *dataAruco(void *arg)
 
 		info.wheel_vel[1]=-1*info.wheel_vel[1];
 	}
-        //cout<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
+      // cout<<l<<","<<info.wheel_vel[0]<<","<<info.wheel_vel[1]<<endl;
         cont=0;
 	
         
@@ -633,7 +644,7 @@ void *dataAruco(void *arg)
         
     }
     //operation for stop robot
-   // pthread_cancel(_Move);
+    //pthread_cancel(_Move);
      double velocity_robot[2];
     double angularWheel[2];
     double vel=0;
@@ -734,25 +745,25 @@ void *robotMove(void *arg){
                     w=0;
                 }*/
                 
-                if(z <= 0.69){
+                if(z <= 0.71){
                     
-                    vel= -8.6*3.35;
+                    vel= -7.8*3.35;
                     //w=-w; 
                     forward=false;
                 }
                 else if( z>1.1 ){
-                    vel=8.6*3.35;
+                    vel=7.8*3.35;
                     forward=true;
                 }
                 
                 if (correction){
                     if( forward){
                     
-                        vel=8.6*3.35;
+                        vel=7.8*3.35;
                         correction=false;
                     }
                     else if( !forward){
-                        vel=-8.6*3.35;
+                        vel=-7.8*3.35;
                         correction=false;
                     }
                 }
@@ -764,7 +775,7 @@ void *robotMove(void *arg){
 		    vel=vel+2;
 		    }
 		    else if(vel<0){
-			    w=-w;
+			    //w=-w;
 			    vel=vel-2;
 		    }
 		 }
@@ -805,7 +816,7 @@ void *robotMove(void *arg){
                 cout<<"parada1 "<<"v: "<<vel<<" w: "<<w<<","<<angularWheel[0]<<","<<angularWheel[1]<<endl;
             	write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
 		*/
-	    	    usleep(350000);
+	    	    usleep(390000);
 		        count=0;
 		
         
