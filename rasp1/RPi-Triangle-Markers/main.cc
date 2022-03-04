@@ -57,7 +57,7 @@ const char* keys  =
         "{v        |<none>| Custom video source, otherwise '0'}"
 	;
 }
-#define MYPORT "4240"   // the port users will be connecting to
+#define MYPORT "4241"   // the port users will be connecting to
 #define PORTBROADCAST "6868"
 #define MAXBUFLEN 256
 #define SAMPLINGTIME 20000 // in usec
@@ -194,7 +194,7 @@ int main(int argc,char **argv)
     cv::Mat rotated_image;
     //std::cout << "camera_matrix\n" << camera_matrix << std::endl;
     //std::cout << "\ndist coeffs\n" << dist_coeffs << std::endl;
-     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height));
+     cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(frame_width,frame_height),0);
     //---------------------------------end aruco code-----
     arucoInfo.clear();
     //aruco::DetectorParameters detectorParams;
@@ -203,10 +203,13 @@ int main(int argc,char **argv)
     while (in_video.grab())
     {
         in_video.retrieve(image);
-        cv::Mat for_Rotation = cv::getRotationMatrix2D(cv::Point2f((image.cols-1) / 2, (image.rows-1) / 2), (180), 1);//affine transformation matrix for the 2D rotation//
-	    cv::warpAffine(image,rotated_image,for_Rotation,image.size());
-        cvtColor(rotated_image,grayMat,cv::COLOR_BGR2GRAY);
-        grayMat.copyTo(image_copy);
+        
+	//cv::Mat for_Rotation = cv::getRotationMatrix2D(cv::Point2f((image.cols-1) / 2, (image.rows-1) / 2), (180), 1);//affine transformation matrix for the 2D rotation//
+	//    cv::warpAffine(image,rotated_image,for_Rotation,image.size());
+        
+	cvtColor(image,grayMat,cv::COLOR_BGR2GRAY);
+        
+
         std::vector<int> ids;
         std::vector<std::vector<cv::Point2f> > corners;
         cv::aruco::detectMarkers(grayMat, dictionary, corners, ids);
@@ -218,7 +221,7 @@ int main(int argc,char **argv)
         // if at least one marker detected
         if (ids.size() > 0)
         {
-            cv::aruco::drawDetectedMarkers(image_copy, corners, ids);
+            cv::aruco::drawDetectedMarkers(image, corners, ids);
             std::vector<cv::Vec3d> rvecs, tvecs;
             cv::aruco::estimatePoseSingleMarkers(corners, marker_length_m,
                     camera_matrix, dist_coeffs, rvecs, tvecs);
@@ -230,8 +233,8 @@ int main(int argc,char **argv)
             // Draw axis for each marker
             for(int i=0; i < ids.size(); i++)
             {
-                cv::aruco::drawAxis(image_copy, camera_matrix, dist_coeffs,
-                        rvecs[i], tvecs[i], 0.1);
+                //cv::aruco::drawAxis(image, camera_matrix, dist_coeffs,
+                //        rvecs[i], tvecs[i], 0.1);
                         
                 data.x=tvecs[i](0);
                 //cout<<"datax "<<data.x<<endl;
@@ -252,30 +255,37 @@ int main(int argc,char **argv)
                 // data for each marker separately.
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
-                                 << "x: " << std::setw(8) << tvecs[0](0);
+                                 << "x1: " << std::setw(8) << tvecs[0](0);
                             
-                cv::putText(image_copy, vector_to_marker.str(),
+                cv::putText(image, vector_to_marker.str(),
                             cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
 
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
-                                 << "y: " << std::setw(8) << tvecs[0](1);
-                cv::putText(image_copy, vector_to_marker.str(),
+                                 << "z1: " << std::setw(8) << tvecs[0](2);
+                cv::putText(image, vector_to_marker.str(),
                             cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
 
                 vector_to_marker.str(std::string());
                 vector_to_marker << std::setprecision(4)
-                                 << "z: " << std::setw(8) << tvecs[0](2);
-                cv::putText(image_copy, vector_to_marker.str(),
+                                 << "x2: " << std::setw(8) << tvecs[1](0);
+                cv::putText(image, vector_to_marker.str(),
                             cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.6,
                             cv::Scalar(0, 252, 124), 1, CV_AVX);
                            
+
+                vector_to_marker.str(std::string());
+                vector_to_marker << std::setprecision(4)
+                                 << "z2: " << std::setw(8) << tvecs[1](2);
+                cv::putText(image, vector_to_marker.str(),
+                            cv::Point(10, 90), cv::FONT_HERSHEY_SIMPLEX, 0.6,
+                            cv::Scalar(0, 252, 124), 1, CV_AVX);
             }
             
         }
-   	video.write(image_copy);       
+   	video<<image;       
     /*  imshow("Pose estimation", image_copy);
         char key = (char)cv::waitKey(wait_time);
         if (key == 27)
@@ -505,15 +515,15 @@ void *dataAruco(void *arg)
     operation_send.len = sizeof (operation_send.data);
     write( arduino,(char*) &operation_send, operation_send.len +HEADER_LEN);
     //delay 
-    usleep(500);
+    //usleep(500);
 
-    
     tcflush( arduino, TCIFLUSH );
        if ( tcsetattr ( arduino, TCSANOW, &tty ) != 0) {
          std::cout << "Error " << errno << " from tcsetattr" << std::endl;
        }
      int numbytes;   
-    //main code for read variables
+
+     //main code for read variables
     while(n<MAXSINGNALLENGTH){
        
         gettimeofday(&tval_before,NULL);
