@@ -1,0 +1,2 @@
+1.conversor step down
+	bateria al 94% que es equivalente al 100%, se obtiene un voltaje de enrtada de 6.53V
