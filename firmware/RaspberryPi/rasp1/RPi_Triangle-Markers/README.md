@@ -1,1 +1,2 @@
-Firmware of raspberryPi of robot1
+# rasp_server-Robot-control
+UDP server for controll diferential robots that belong of a robotarium, the aim is create a sinusoidal movement for every robot commanded by a raspberry pi, the raspberry pi is connected to a camera, not necessary a rasp cam,the cam is on the robot, the cam gets the position of the other robots involve in the proyect using the code of ARUCO markers, the raspberry take the velocity of the robot and save the time and velocity in a txt file
